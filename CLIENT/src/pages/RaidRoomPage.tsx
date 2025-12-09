@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRaidRoom, createChannel, deleteChannel, markDefeated, completeRaidRoom, deleteRaidRoom, updateChannelMemo, toggleChannelSelection, updateChannelBossColor } from '../services/BossService';
-import { User, RaidRoomData } from '../types';
+import { User, RaidRoomData, Channel, Participant } from '../types';
 
 interface RaidRoomPageProps {
   user: User;
@@ -82,7 +82,7 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
         if (result.success) {
           // 즉시 로컬 상태 업데이트 (임시 채널 추가)
           const newChannel: Channel = {
-            id: result.channelId || Date.now(), // 임시 ID
+            id: (result as any).channelId || Date.now(), // 임시 ID
             channelNumber: parseInt(channelNumber),
             isDefeated: false,
             memo: '',
@@ -224,6 +224,31 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
     } else {
       setSelectedChannelId(channelId);
     }
+  };
+
+  // 선택된 채널 완료 처리
+  const handleMarkDefeatedSelected = async () => {
+    if (!roomId || !selectedChannelId || roomData?.isCompleted) {
+      if (!selectedChannelId) {
+        alert('먼저 채널을 선택해주세요.');
+      }
+      return;
+    }
+
+    const selectedChannel = roomData?.channels.find(c => c.id === selectedChannelId);
+    if (!selectedChannel) {
+      return;
+    }
+
+    const isAlreadyDefeated = selectedChannel.isDefeated;
+    const action = isAlreadyDefeated ? '완료 표시를 해제' : '사냥 완료 처리';
+    
+    if (!window.confirm(`해당 채널을 ${action}하시겠습니까?`)) {
+      return;
+    }
+
+    // 기존 함수 재사용
+    await handleMarkDefeated(selectedChannelId);
   };
 
   // 이동중 표시 (DB 저장 및 브로드캐스트)
@@ -474,17 +499,33 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
                 <button className="btn-add" onClick={handleAddChannel}>
                   + 채널 추가
                 </button>
-                {selectedChannelId && user && user.id && (
+                {selectedChannelId && (
                   <>
-                    {roomData.channels.find(c => c.id === selectedChannelId)?.users?.some((u: any) => u.userId === user.id && u.isMoving) ? (
-                      <button className="btn-moving-clear-header" onClick={handleClearMoving}>
-                        이동중 해제
-                      </button>
-                    ) : (
-                      <button className="btn-moving-set-header" onClick={handleSetMoving}>
-                        이동중 표시
-                      </button>
+                    {user && user.id && (
+                      <>
+                        {roomData.channels.find(c => c.id === selectedChannelId)?.users?.some((u: any) => u.userId === user.id && u.isMoving) ? (
+                          <button className="btn-moving-clear-header" onClick={handleClearMoving}>
+                            이동중 해제
+                          </button>
+                        ) : (
+                          <button className="btn-moving-set-header" onClick={handleSetMoving}>
+                            이동중 표시
+                          </button>
+                        )}
+                      </>
                     )}
+                    {(() => {
+                      const selectedChannel = roomData.channels.find(c => c.id === selectedChannelId);
+                      const isDefeated = selectedChannel?.isDefeated;
+                      return (
+                        <button 
+                          className={`btn-defeated-header ${isDefeated ? 'active' : ''}`} 
+                          onClick={handleMarkDefeatedSelected}
+                        >
+                          {isDefeated ? '✓ 완료됨' : '사냥 완료'}
+                        </button>
+                      );
+                    })()}
                     <button className="btn-channel-delete-header" onClick={handleDeleteChannel}>
                       채널 삭제
                     </button>
@@ -516,9 +557,12 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
                     {channel.isDefeated && <span className="defeated-badge">✓</span>}
                   </div>
                   {/* 서버에서 저장된 이동중 표시 */}
-                  {user && user.id && channel.users?.some((u: any) => u.userId === user.id && u.isMoving) && (
+                  {user && user.id && channel.users?.some((u: any) => {
+                    const userId = typeof user.id === 'string' ? parseInt(user.id, 10) : user.id;
+                    return u.userId === userId && u.isMoving;
+                  }) && (
                     <div className="moving-indicator">
-                      {getUserDisplayName({ userId: user.id, username: user.username || '', displayName: user.displayName })} 이동중
+                      {getUserDisplayName({ userId: typeof user.id === 'string' ? parseInt(user.id, 10) : user.id, username: user.username || '', displayName: user.displayName })} 이동중
                     </div>
                   )}
                   {editingMemo?.channelId === channel.id ? (
