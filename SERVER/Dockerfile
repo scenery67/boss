@@ -18,14 +18,18 @@ RUN chmod +x gradlew || true
 # --stacktrace 옵션으로 더 자세한 에러 확인
 RUN ./gradlew build -x test --no-daemon --stacktrace || gradle build -x test --no-daemon --stacktrace
 
+# 빌드된 JAR 파일 확인 (디버깅용)
+RUN ls -la /home/gradle/project/app/build/libs/ || echo "libs directory not found"
+
 # 실행 단계: JDK 21 JRE 사용 (경량화된 Alpine 이미지)
 FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
 # 빌드된 Spring Boot JAR 파일 복사 (bootJar 태스크로 생성된 실행 가능한 JAR)
-# app-*-boot.jar 형식의 파일을 찾아서 복사
-COPY --from=builder /home/gradle/project/app/build/libs/app-*-boot.jar app.jar
+# Spring Boot는 bootJar 태스크로 실행 가능한 JAR를 생성합니다
+# 파일 이름은 보통 {project-name}-{version}-boot.jar 형식입니다
+COPY --from=builder /home/gradle/project/app/build/libs/*-boot.jar app.jar
 
 # Java 버전 확인용 (선택사항)
 RUN java -version
