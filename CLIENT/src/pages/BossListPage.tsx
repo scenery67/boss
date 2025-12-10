@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTodayBosses, createRaidRoom } from '../services/BossService';
 import { User, Boss } from '../types';
+import { websocketService } from '../services/websocket';
 
 interface BossListPageProps {
   user: User;
@@ -20,9 +21,19 @@ const BossListPage: React.FC<BossListPageProps> = ({ user, onLogout }) => {
     raidMinute: '00'
   });
   const navigate = useNavigate();
+  const wsSubscriptionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     loadBosses();
+    connectWebSocket();
+
+    return () => {
+      // WebSocket 구독 해제
+      if (wsSubscriptionRef.current) {
+        wsSubscriptionRef.current();
+        wsSubscriptionRef.current = null;
+      }
+    };
   }, []);
 
   const loadBosses = async (forceRefresh: boolean = false) => {
@@ -35,6 +46,30 @@ const BossListPage: React.FC<BossListPageProps> = ({ user, onLogout }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const connectWebSocket = () => {
+    // WebSocket 서비스 연결
+    if (!websocketService.isConnected()) {
+      websocketService.connect();
+    }
+
+    // 이전 구독 해제
+    if (wsSubscriptionRef.current) {
+      wsSubscriptionRef.current();
+    }
+
+    // 보스 목록 업데이트 구독
+    const unsubscribe = websocketService.subscribe('/topic/bosses/today', (data: any) => {
+      console.log('보스 목록 업데이트 수신:', data);
+      // 서버에서 받은 데이터로 상태 업데이트
+      if (data && data.bosses) {
+        setBosses(data.bosses);
+      }
+    });
+
+    wsSubscriptionRef.current = unsubscribe;
+    console.log('WebSocket 구독 완료: /topic/bosses/today');
   };
 
   const handleEnterRoom = (roomId: number) => {

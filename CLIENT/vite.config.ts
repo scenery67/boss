@@ -6,6 +6,9 @@ export default defineConfig({
   // GitHub Pages는 /boss/ 서브패스에서 서비스되므로 base 설정 필요
   base: process.env.NODE_ENV === 'production' ? '/boss/' : '/',
   plugins: [react()],
+  define: {
+    global: 'globalThis',
+  },
   server: {
     port: 5000,
     sourcemapIgnoreList: false, // 디버깅을 위해 sourcemap 무시 목록 비활성화

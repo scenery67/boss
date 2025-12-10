@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRaidRoom, createChannel, deleteChannel, markDefeated, completeRaidRoom, deleteRaidRoom, updateChannelMemo, toggleChannelSelection, updateChannelBossColor } from '../services/BossService';
 import { User, RaidRoomData, Channel, Participant } from '../types';
+import { websocketService } from '../services/websocket';
 
 interface RaidRoomPageProps {
   user: User;
@@ -16,6 +17,7 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
   const [editingMemo, setEditingMemo] = useState<{ channelId: number; memo: string } | null>(null);
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [selectingBossColor, setSelectingBossColor] = useState<{ channelId: number; bossType: string } | null>(null);
+  const wsSubscriptionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (roomId) {
@@ -24,7 +26,11 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
     }
 
     return () => {
-      // WebSocket 연결 해제
+      // WebSocket 구독 해제
+      if (wsSubscriptionRef.current) {
+        wsSubscriptionRef.current();
+        wsSubscriptionRef.current = null;
+      }
     };
   }, [roomId]);
 
@@ -70,8 +76,43 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
   };
 
   const connectWebSocket = () => {
-    // TODO: WebSocket 연결 구현
-    console.log('WebSocket 연결 예정:', roomId);
+    if (!roomId) return;
+
+    // WebSocket 서비스 연결
+    if (!websocketService.isConnected()) {
+      websocketService.connect();
+    }
+
+    // 이전 구독 해제
+    if (wsSubscriptionRef.current) {
+      wsSubscriptionRef.current();
+    }
+
+    // 레이드 방 업데이트 구독
+    const unsubscribe = websocketService.subscribe(`/topic/raid-room/${roomId}`, (data: RaidRoomData) => {
+      console.log('레이드 방 업데이트 수신:', data);
+      // 서버에서 받은 데이터로 상태 업데이트
+      if (data && data.channels) {
+        data.channels = data.channels.map((ch: any) => ({
+          ...ch,
+          memo: ch.memo || ''
+        }));
+        
+        // 현재 사용자가 선택한 채널 찾기
+        if (user && user.id && data.channels) {
+          const userChannel = data.channels.find((ch: any) => 
+            ch.users && ch.users.some((u: any) => u.userId === user.id && u.isMoving === true)
+          );
+          if (userChannel) {
+            setSelectedChannelId(userChannel.id);
+          }
+        }
+      }
+      setRoomData(data);
+    });
+
+    wsSubscriptionRef.current = unsubscribe;
+    console.log('WebSocket 구독 완료:', `/topic/raid-room/${roomId}`);
   };
 
   const handleAddChannel = async () => {

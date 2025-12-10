@@ -248,32 +248,43 @@ public class RaidRoomService {
     @CacheEvict(value = "raidRoom", key = "#roomId")
     @Transactional
     public Map<String, Object> updateChannelMemo(Long roomId, Long channelId, String memo) {
-        Optional<Channel> channelOpt = channelRepository.findById(channelId);
-        
-        if (channelOpt.isEmpty()) {
+        try {
+            // raidRoom을 함께 로드하여 lazy loading 문제 방지
+            Optional<Channel> channelOpt = channelRepository.findByIdWithRaidRoom(channelId);
+            if (channelOpt.isEmpty()) {
+                // fallback to regular findById
+                channelOpt = channelRepository.findById(channelId);
+            }
+            
+            if (channelOpt.isEmpty()) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "채널을 찾을 수 없습니다");
+                return error;
+            }
+            
+            Channel channel = channelOpt.get();
+            
+            // 방 ID 확인 (null 체크)
+            if (channel.getRaidRoom() == null || !channel.getRaidRoom().getId().equals(roomId)) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "잘못된 레이드 방입니다");
+                return error;
+            }
+            
+            channel.setMemo(memo);
+            channelRepository.save(channel);
+            
+            // 실시간 브로드캐스트
+            realtimeBossService.broadcastRaidRoomUpdate(roomId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            return response;
+        } catch (Exception e) {
             Map<String, Object> error = new HashMap<>();
-            error.put("error", "채널을 찾을 수 없습니다");
+            error.put("error", "메모 업데이트 중 오류가 발생했습니다: " + e.getMessage());
             return error;
         }
-        
-        Channel channel = channelOpt.get();
-        
-        // 방 ID 확인
-        if (!channel.getRaidRoom().getId().equals(roomId)) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("error", "잘못된 레이드 방입니다");
-            return error;
-        }
-        
-        channel.setMemo(memo);
-        channelRepository.save(channel);
-        
-        // 실시간 브로드캐스트
-        realtimeBossService.broadcastRaidRoomUpdate(roomId);
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        return response;
     }
     
     /**
@@ -285,7 +296,12 @@ public class RaidRoomService {
     @Transactional
     public Map<String, Object> markDefeated(Long roomId, Long channelId) {
         try {
-            Optional<Channel> channelOpt = channelRepository.findById(channelId);
+            // raidRoom을 함께 로드하여 lazy loading 문제 방지
+            Optional<Channel> channelOpt = channelRepository.findByIdWithRaidRoom(channelId);
+            if (channelOpt.isEmpty()) {
+                // fallback to regular findById
+                channelOpt = channelRepository.findById(channelId);
+            }
             
             if (channelOpt.isEmpty()) {
                 Map<String, Object> error = new HashMap<>();
@@ -295,8 +311,8 @@ public class RaidRoomService {
             
             Channel channel = channelOpt.get();
             
-            // 방 ID 확인
-            if (!channel.getRaidRoom().getId().equals(roomId)) {
+            // 방 ID 확인 (null 체크)
+            if (channel.getRaidRoom() == null || !channel.getRaidRoom().getId().equals(roomId)) {
                 Map<String, Object> error = new HashMap<>();
                 error.put("error", "잘못된 레이드 방입니다");
                 return error;

@@ -22,6 +22,9 @@ public class RaidRoomController {
     public ResponseEntity<Map<String, Object>> getRaidRoom(@PathVariable Long roomId) {
         try {
             Map<String, Object> response = raidRoomService.getRaidRoom(roomId);
+            if (response == null) {
+                return ResponseUtil.notFound("레이드 방을 찾을 수 없습니다");
+            }
             return ResponseUtil.fromServiceResponse(response);
         } catch (Exception e) {
             return ResponseUtil.internalError("레이드 방 조회 중 오류가 발생했습니다: " + e.getMessage());
@@ -72,13 +75,17 @@ public class RaidRoomController {
     public ResponseEntity<Map<String, Object>> markDefeated(
             @PathVariable Long roomId,
             @PathVariable Long channelId) {
-        Map<String, Object> response = raidRoomService.markDefeated(roomId, channelId);
-        
-        if (response.containsKey("error")) {
-            return ResponseEntity.badRequest().body(response);
+        try {
+            Map<String, Object> response = raidRoomService.markDefeated(roomId, channelId);
+            
+            if (response.containsKey("error")) {
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseUtil.internalError("보스 잡혔다 표시 중 오류가 발생했습니다: " + e.getMessage());
         }
-        
-        return ResponseEntity.ok(response);
     }
     
     // 채널 메모 업데이트
@@ -87,13 +94,17 @@ public class RaidRoomController {
             @PathVariable Long roomId,
             @PathVariable Long channelId,
             @RequestBody Map<String, Object> request) {
-        String memo = (String) request.get("memo");
-        if (memo == null) {
-            memo = "";
+        try {
+            String memo = (String) request.get("memo");
+            if (memo == null) {
+                memo = "";
+            }
+            
+            Map<String, Object> response = raidRoomService.updateChannelMemo(roomId, channelId, memo);
+            return ResponseUtil.fromServiceResponse(response);
+        } catch (Exception e) {
+            return ResponseUtil.internalError("메모 업데이트 중 오류가 발생했습니다: " + e.getMessage());
         }
-        
-        Map<String, Object> response = raidRoomService.updateChannelMemo(roomId, channelId, memo);
-        return ResponseUtil.fromServiceResponse(response);
     }
     
     // 채널 보스 색상 업데이트 (용의 경우)
