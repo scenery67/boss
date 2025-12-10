@@ -15,7 +15,8 @@ RUN chmod +x gradlew || true
 # Gradle Toolchain이 JDK 21을 사용하도록 보장하며 빌드
 # build.gradle의 toolchain 설정이 JDK 21을 사용하도록 되어 있음
 # Gradle Wrapper 사용 (로컬 Gradle 버전과 일치)
-RUN ./gradlew build -x test --no-daemon || gradle build -x test --no-daemon
+# --stacktrace 옵션으로 더 자세한 에러 확인
+RUN ./gradlew build -x test --no-daemon --stacktrace || gradle build -x test --no-daemon --stacktrace
 
 # 실행 단계: JDK 21 JRE 사용 (경량화된 Alpine 이미지)
 FROM eclipse-temurin:21-jre-alpine

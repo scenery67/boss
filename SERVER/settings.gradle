@@ -7,13 +7,5 @@ plugins {
 rootProject.name = 'boss-server'
 include 'app'
 
-// Toolchain Management: 모든 빌드 작업에 JDK 21 사용
-toolchainManagement {
-    jvm {
-        javaRepositories {
-            repository('foojay') {
-                resolverClass = org.gradle.toolchains.foojay.FoojayToolchainResolver
-            }
-        }
-    }
-}
+// Toolchain Management는 플러그인이 자동으로 처리하므로 제거
+// Docker 이미지가 이미 JDK 21을 포함하고 있어서 추가 설정 불필요
