@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -46,15 +47,20 @@ public class RaidRoomController {
         return ResponseUtil.fromServiceResponse(response);
     }
     
-    // 채널 생성 (이미지 인식)
-    @PostMapping("/{roomId}/channels/image")
-    public ResponseEntity<Map<String, Object>> createChannelFromImage(
+    // 채널 일괄 생성
+    @PostMapping("/{roomId}/channels/batch")
+    public ResponseEntity<Map<String, Object>> createChannelsBatch(
             @PathVariable Long roomId,
-            @RequestBody Map<String, String> request) {
-        // TODO: 이미지 인식으로 채널 생성
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "이미지 인식 채널 생성 구현 예정");
-        return ResponseEntity.ok(response);
+            @RequestBody Map<String, Object> request) {
+        @SuppressWarnings("unchecked")
+        List<Integer> channelNumbers = (List<Integer>) request.get("channelNumbers");
+        
+        if (channelNumbers == null || channelNumbers.isEmpty()) {
+            return ResponseUtil.badRequest("채널 번호 목록이 필요합니다");
+        }
+        
+        Map<String, Object> response = raidRoomService.createChannelsBatch(roomId, channelNumbers);
+        return ResponseUtil.fromServiceResponse(response);
     }
     
     // 채널 삭제

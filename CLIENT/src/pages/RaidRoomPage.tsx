@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { getRaidRoom, createChannel, deleteChannel, markDefeated, completeRaidRoom, deleteRaidRoom, updateChannelMemo, toggleChannelSelection, updateChannelBossColor, toggleParticipation } from '../services/BossService';
+import { getRaidRoom, createChannel, deleteChannel, markDefeated, completeRaidRoom, deleteRaidRoom, updateChannelMemo, toggleChannelSelection, updateChannelBossColor, toggleParticipation, createChannelsBatch } from '../services/BossService';
 import { User, RaidRoomData, Channel, Participant } from '../types';
 import { websocketService } from '../services/websocket';
+import { createWorker } from 'tesseract.js';
 
 interface RaidRoomPageProps {
   user: User;
@@ -257,83 +258,324 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
     wsUsersSubscriptionRef.current = unsubscribeUsers;
   };
 
+  const processImageFromClipboard = async (file: File) => {
+    if (!roomId || !roomData) return;
+
+    try {
+      // Tesseract.js로 OCR 수행
+      const worker = await createWorker('eng');
+      const { data: { text } } = await worker.recognize(file);
+      await worker.terminate();
+
+      // 4자리 숫자 패턴 추출 (채널 번호)
+      const channelNumberPattern = /\b\d{4}\b/g;
+      const matches = text.match(channelNumberPattern);
+      
+      if (!matches || matches.length === 0) {
+        alert('이미지에서 채널 번호를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 중복 제거 및 숫자로 변환
+      const channelNumbers = Array.from(new Set(matches.map(m => parseInt(m, 10))))
+        .filter(num => num >= 1000 && num <= 9999) // 유효한 채널 번호 범위
+        .sort((a, b) => a - b);
+
+      if (channelNumbers.length === 0) {
+        alert('유효한 채널 번호를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 이미 존재하는 채널 번호 필터링
+      const existingChannelNumbers = roomData.channels.map(ch => ch.channelNumber);
+      const newChannelNumbers = channelNumbers.filter(num => !existingChannelNumbers.includes(num));
+
+      if (newChannelNumbers.length === 0) {
+        alert('모든 채널 번호가 이미 존재합니다.');
+        return;
+      }
+
+      // 확인 메시지
+      const confirmMessage = `다음 ${newChannelNumbers.length}개의 채널을 생성하시겠습니까?\n${newChannelNumbers.join(', ')}`;
+      if (!window.confirm(confirmMessage)) return;
+
+      // 일괄 생성
+      const result = await createChannelsBatch(parseInt(roomId), newChannelNumbers);
+      
+      if (result.success) {
+        alert(`${result.created?.length || newChannelNumbers.length}개의 채널이 생성되었습니다.`);
+        // 웹소켓을 통해 자동으로 업데이트됨
+        setTimeout(() => {
+          loadRoomInfo(true, true);
+        }, 1000);
+      } else {
+        alert(result.error || '채널 생성에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('이미지 인식 실패:', err);
+      alert('이미지 인식 중 오류가 발생했습니다.');
+    }
+  };
+
   const handleAddChannel = async () => {
     // 중복 요청 방지
     if (isAddingChannelRef.current) {
       return;
     }
 
-    const channelNumber = prompt('채널 번호를 입력하세요:');
-    if (!channelNumber || !roomId || !roomData) return;
+    if (!roomId || !roomData) return;
 
-    // 이미 존재하는 채널 번호인지 확인
-    const channelNum = parseInt(channelNumber);
-    if (isNaN(channelNum)) {
-      alert('올바른 채널 번호를 입력하세요.');
-      return;
-    }
-
-    const existingChannel = roomData.channels.find(ch => ch.channelNumber === channelNum);
-    if (existingChannel) {
-      alert(`채널 ${channelNum}은(는) 이미 존재합니다.`);
-      return;
-    }
-
-    isAddingChannelRef.current = true;
-
-    // 즉시 로컬 상태 업데이트 (낙관적 업데이트)
-    const tempChannelId = Date.now(); // 임시 ID (에러 처리에서도 사용)
-    const newChannel: Channel = {
-      id: tempChannelId,
-      channelNumber: channelNum,
-      isDefeated: false,
-      memo: '',
-      users: []
+    // 커스텀 입력 다이얼로그 생성
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      z-index: 10000;
+      min-width: 400px;
+      max-width: 600px;
+    `;
+    
+    // 제목
+    const title = document.createElement('h3');
+    title.textContent = '채널 추가';
+    title.style.cssText = 'margin: 0 0 15px 0; font-size: 18px; font-weight: bold; color: #333;';
+    
+    // 설명 텍스트
+    const description = document.createElement('div');
+    description.innerHTML = `
+      <div style="margin-bottom: 15px; line-height: 1.6;">
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">
+          <strong>채널을 추가하는 방법은 두 가지입니다:</strong>
+        </p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #666;">
+          <li style="margin-bottom: 5px;"><strong>개별 추가:</strong> 아래 입력창에 채널 번호를 직접 입력하세요</li>
+          <li style="margin-bottom: 5px;"><strong>이미지 붙여넣기:</strong> 스크린샷을 클립보드에 복사한 후 <strong>Ctrl+V</strong>를 눌러 붙여넣으세요</li>
+        </ul>
+      </div>
+    `;
+    
+    // 예시 이미지 섹션
+    const exampleImageContainer = document.createElement('div');
+    exampleImageContainer.style.cssText = 'margin-bottom: 15px; text-align: center; padding: 10px; background: #f5f5f5; border-radius: 4px;';
+    
+    const exampleImageLabel = document.createElement('div');
+    exampleImageLabel.textContent = '📷 예시 이미지 (이런 형태의 스크린샷을 붙여넣으세요)';
+    exampleImageLabel.style.cssText = 'font-size: 12px; color: #666; margin-bottom: 8px; font-weight: 500;';
+    
+    const exampleImage = document.createElement('img');
+    exampleImage.src = '/channel-example.png';
+    exampleImage.alt = '채널 목록 예시';
+    exampleImage.style.cssText = 'max-width: 100%; max-height: 250px; border: 1px solid #ddd; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);';
+    exampleImage.onerror = () => {
+      // 이미지가 없으면 예시 이미지 컨테이너 숨기기
+      exampleImageContainer.style.display = 'none';
     };
-    setRoomData({
-      ...roomData,
-      channels: [...roomData.channels, newChannel]
-    });
-
-    try {
-      const result = await createChannel(parseInt(roomId), channelNum);
-      
-      if (result.success) {
-        // 웹소켓 메시지가 도착하면 서버 데이터로 덮어쓰기됨
-        // 타임아웃 안전장치: 웹소켓이 실패하면 API로 폴백 (1초 후)
-        if (websocketTimeoutRef.current) {
-          clearTimeout(websocketTimeoutRef.current);
+    
+    exampleImageContainer.appendChild(exampleImageLabel);
+    exampleImageContainer.appendChild(exampleImage);
+    
+    // 입력 필드 라벨
+    const inputLabel = document.createElement('label');
+    inputLabel.textContent = '채널 번호 입력:';
+    inputLabel.style.cssText = 'display: block; margin-bottom: 5px; font-size: 13px; font-weight: 500; color: #333;';
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = '예: 1126 또는 Ctrl+V로 이미지 붙여넣기';
+    input.style.cssText = 'width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;';
+    input.focus();
+    
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'display: flex; gap: 10px; justify-content: flex-end;';
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '취소';
+    cancelBtn.style.cssText = 'padding: 8px 16px; cursor: pointer;';
+    
+    const okBtn = document.createElement('button');
+    okBtn.textContent = '확인';
+    okBtn.style.cssText = 'padding: 8px 16px; cursor: pointer;';
+    
+    buttonContainer.appendChild(cancelBtn);
+    buttonContainer.appendChild(okBtn);
+    
+    dialog.appendChild(title);
+    dialog.appendChild(description);
+    dialog.appendChild(exampleImageContainer);
+    dialog.appendChild(inputLabel);
+    dialog.appendChild(input);
+    dialog.appendChild(buttonContainer);
+    
+    document.body.appendChild(dialog);
+    
+    // 배경 오버레이
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 9999;
+    `;
+    document.body.appendChild(overlay);
+    
+    let isCleanedUp = false;
+    const cleanup = () => {
+      if (isCleanedUp) return;
+      isCleanedUp = true;
+      try {
+        if (dialog && dialog.parentNode === document.body) {
+          document.body.removeChild(dialog);
         }
-        websocketTimeoutRef.current = setTimeout(() => {
-          loadRoomInfo(true, true); // silent 모드
-          websocketTimeoutRef.current = null;
+        if (overlay && overlay.parentNode === document.body) {
+          document.body.removeChild(overlay);
+        }
+      } catch (err) {
+        // 이미 제거되었거나 없는 경우 무시
+        console.debug('cleanup error (ignored):', err);
+      }
+    };
+    
+    // Ctrl+V 이벤트 핸들러
+    const handlePaste = async (e: ClipboardEvent) => {
+      e.preventDefault();
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            cleanup();
+            // 이벤트 리스너 제거
+            input.removeEventListener('paste', handlePaste);
+            document.removeEventListener('paste', handlePaste);
+            document.removeEventListener('keydown', handleDialogKeyDown);
+            await processImageFromClipboard(file);
+            return;
+          }
+        }
+      }
+    };
+    
+    const handleDialogKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        cleanup();
+        input.removeEventListener('paste', handlePaste);
+        document.removeEventListener('paste', handlePaste);
+        document.removeEventListener('keydown', handleDialogKeyDown);
+      }
+    };
+    
+    // 붙여넣기 이벤트 리스너 추가
+    input.addEventListener('paste', handlePaste);
+    document.addEventListener('paste', handlePaste);
+    document.addEventListener('keydown', handleDialogKeyDown);
+    
+    cancelBtn.onclick = () => {
+      cleanup();
+      input.removeEventListener('paste', handlePaste);
+      document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('keydown', handleDialogKeyDown);
+    };
+    
+    okBtn.onclick = async () => {
+      const channelNumber = input.value.trim();
+      if (!channelNumber) {
+        alert('채널 번호를 입력해주세요.');
+        return;
+      }
+      
+      cleanup();
+      input.removeEventListener('paste', handlePaste);
+      document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('keydown', handleDialogKeyDown);
+      
+      // 기존 로직으로 채널 생성
+      const channelNum = parseInt(channelNumber);
+      if (isNaN(channelNum)) {
+        alert('올바른 채널 번호를 입력하세요.');
+        return;
+      }
+
+      const existingChannel = roomData.channels.find(ch => ch.channelNumber === channelNum);
+      if (existingChannel) {
+        alert(`채널 ${channelNum}은(는) 이미 존재합니다.`);
+        return;
+      }
+
+      isAddingChannelRef.current = true;
+
+      // 즉시 로컬 상태 업데이트 (낙관적 업데이트)
+      const tempChannelId = Date.now(); // 임시 ID (에러 처리에서도 사용)
+      const newChannel: Channel = {
+        id: tempChannelId,
+        channelNumber: channelNum,
+        isDefeated: false,
+        memo: '',
+        users: []
+      };
+      setRoomData({
+        ...roomData,
+        channels: [...roomData.channels, newChannel]
+      });
+
+      try {
+        const result = await createChannel(parseInt(roomId), channelNum);
+        
+        if (result.success) {
+          // 웹소켓 메시지가 도착하면 서버 데이터로 덮어쓰기됨
+          // 타임아웃 안전장치: 웹소켓이 실패하면 API로 폴백 (1초 후)
+          if (websocketTimeoutRef.current) {
+            clearTimeout(websocketTimeoutRef.current);
+          }
+          websocketTimeoutRef.current = setTimeout(() => {
+            loadRoomInfo(true, true); // silent 모드
+            websocketTimeoutRef.current = null;
+            isAddingChannelRef.current = false;
+          }, 1000); // 1초로 단축
+        } else {
+          // 실패 시 로컬 상태 롤백
+          setRoomData({
+            ...roomData,
+            channels: roomData.channels.filter(ch => ch.id !== tempChannelId)
+          });
+          const errorMessage = (result as any)?.error || '채널 생성에 실패했습니다.';
+          alert(errorMessage);
           isAddingChannelRef.current = false;
-        }, 1000); // 1초로 단축
-      } else {
-        // 실패 시 로컬 상태 롤백
-        setRoomData({
-          ...roomData,
-          channels: roomData.channels.filter(ch => ch.id !== tempChannelId)
-        });
-        const errorMessage = (result as any)?.error || '채널 생성에 실패했습니다.';
+        }
+      } catch (err) {
+        console.error('채널 생성 실패:', err);
+        // 에러 발생 시 로컬 상태 롤백 (임시 채널 제거)
+        if (roomData) {
+          setRoomData({
+            ...roomData,
+            channels: roomData.channels.filter(ch => ch.id !== tempChannelId)
+          });
+        }
+        const errorMessage = (err as any)?.response?.data?.error || '채널 생성에 실패했습니다.';
         alert(errorMessage);
         isAddingChannelRef.current = false;
+        // 에러 발생 시 최신 데이터로 새로고침
+        loadRoomInfo(true, true);
       }
-    } catch (err) {
-      console.error('채널 생성 실패:', err);
-      // 에러 발생 시 로컬 상태 롤백 (임시 채널 제거)
-      if (roomData) {
-        setRoomData({
-          ...roomData,
-          channels: roomData.channels.filter(ch => ch.id !== tempChannelId)
-        });
+    };
+    
+    // Enter 키로 확인
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        okBtn.click();
       }
-      const errorMessage = (err as any)?.response?.data?.error || '채널 생성에 실패했습니다.';
-      alert(errorMessage);
-      isAddingChannelRef.current = false;
-      // 에러 발생 시 최신 데이터로 새로고침
-      loadRoomInfo(true, true);
-    }
+    };
   };
 
   const handleDeleteChannel = async () => {

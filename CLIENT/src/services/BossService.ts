@@ -174,3 +174,14 @@ export const toggleParticipation = async (roomId: number, userId: number): Promi
   
   return response.data;
 };
+
+export const createChannelsBatch = async (roomId: number, channelNumbers: number[]): Promise<ApiResponse & { created?: number[], failed?: number[] }> => {
+  const response = await apiClient.post(`/api/raid-rooms/${roomId}/channels/batch`, {
+    channelNumbers
+  });
+  
+  // 채널 일괄 생성 시 해당 방 캐시 무효화
+  cache.delete(getRaidRoomCacheKey(roomId));
+  
+  return response.data;
+};

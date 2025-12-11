@@ -22,10 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -317,6 +319,68 @@ public class RaidRoomService {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
         response.put("channelId", channel.getId());
+        return response;
+    }
+    
+    /**
+     * 채널 일괄 생성
+     * 캐시 무효화는 트랜잭션 커밋 후 RealtimeBossService에서 처리
+     */
+    @Transactional
+    public Map<String, Object> createChannelsBatch(Long roomId, List<Integer> channelNumbers) {
+        Optional<RaidRoom> roomOpt = raidRoomRepository.findById(roomId);
+        
+        if (roomOpt.isEmpty()) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "레이드 방을 찾을 수 없습니다");
+            return error;
+        }
+        
+        RaidRoom room = roomOpt.get();
+        
+        // 기존 채널 번호 조회
+        List<Channel> existingChannels = channelRepository.findByRaidRoomId(roomId);
+        Set<Integer> existingChannelNumbers = existingChannels.stream()
+            .map(Channel::getChannelNumber)
+            .collect(java.util.stream.Collectors.toSet());
+        
+        List<Integer> created = new ArrayList<>();
+        List<Integer> failed = new ArrayList<>();
+        
+        for (Integer channelNumber : channelNumbers) {
+            // 중복 체크
+            if (existingChannelNumbers.contains(channelNumber)) {
+                failed.add(channelNumber);
+                continue;
+            }
+            
+            try {
+                Channel channel = new Channel();
+                channel.setRaidRoom(room);
+                channel.setChannelNumber(channelNumber);
+                channel.setIsDefeated(false);
+                
+                channelRepository.save(channel);
+                created.add(channelNumber);
+                existingChannelNumbers.add(channelNumber); // 중복 방지를 위해 추가
+            } catch (Exception e) {
+                logger.warn("채널 생성 실패: roomId={}, channelNumber={}, error={}", roomId, channelNumber, e.getMessage());
+                failed.add(channelNumber);
+            }
+        }
+        
+        // 실시간 브로드캐스트
+        if (!created.isEmpty()) {
+            realtimeBossService.broadcastRaidRoomUpdate(roomId);
+            realtimeBossService.broadcastBossListUpdate(); // 채널 수 변경 반영
+        }
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("created", created);
+        response.put("failed", failed);
+        response.put("createdCount", created.size());
+        response.put("failedCount", failed.size());
         return response;
     }
     
