@@ -51,6 +51,33 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
     };
   }, [roomId]);
 
+  // ESC 또는 Backspace 키로 뒤로 가기
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // input, textarea 등 입력 필드에 포커스가 있으면 무시
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // ESC 키 또는 Backspace 키
+      if (e.key === 'Escape' || e.key === 'Backspace') {
+        // 완료된 레이드 목록에서 온 경우 완료된 레이드 목록으로 돌아가기
+        if ((location.state as any)?.fromCompleted) {
+          navigate('/completed');
+        } else {
+          // 일반 레이드 방 목록에서 온 경우 레이드 방 목록으로 이동
+          navigate('/');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [navigate, location]);
+
   const loadRoomInfo = async (forceRefresh: boolean = false, silent: boolean = false) => {
     if (!roomId) return;
 

@@ -28,6 +28,27 @@ const CompletedRoomsPage: React.FC<CompletedRoomsPageProps> = ({ user, onLogout 
     loadCompletedRooms();
   }, []);
 
+  // ESC 또는 Backspace 키로 뒤로 가기
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // input, textarea 등 입력 필드에 포커스가 있으면 무시
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // ESC 키 또는 Backspace 키
+      if (e.key === 'Escape' || e.key === 'Backspace') {
+        navigate('/');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [navigate]);
+
   const loadCompletedRooms = async () => {
     try {
       setLoading(true);
