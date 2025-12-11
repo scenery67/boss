@@ -61,7 +61,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, isServerAlive = null }) 
         {isServerAlive !== null && (
           <span 
             className={`server-status-indicator ${isServerAlive ? 'alive' : 'sleep'}`}
-            title={isServerAlive ? '서버가 살아있습니다' : '서버가 sleep 중입니다'}
+            title={isServerAlive ? '서버가 살아있습니다' : '서버가 sleep 중입니다. 로그인 요청을 보내면, 3~4분 후에 서버가 켜집니다.'}
           />
         )}
       </h1>
