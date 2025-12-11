@@ -13,7 +13,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 import java.util.HashMap;
 import java.util.List;
@@ -39,13 +42,35 @@ public class RaidRoomService {
     @Autowired
     private RealtimeBossService realtimeBossService;
     
+    @PersistenceContext
+    private EntityManager entityManager;
+    
     /**
-     * 레이드 방 상세 정보 조회
+     * 레이드 방 상세 정보 조회 (캐시 사용)
      * 캐시: 10초간 유지 (실시간 업데이트 필요하므로 짧게)
      */
     @Transactional(readOnly = true)
     @Cacheable(value = "raidRoom", key = "#roomId", unless = "#result == null")
     public Map<String, Object> getRaidRoom(Long roomId) {
+        return getRaidRoomInternal(roomId);
+    }
+    
+    /**
+     * 레이드 방 상세 정보 조회 (캐시 우회)
+     * WebSocket 브로드캐스트 시 최신 데이터를 보장하기 위해 사용
+     * REQUIRES_NEW: 완전히 새로운 트랜잭션에서 실행하여 영속성 컨텍스트 초기화
+     */
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public Map<String, Object> getRaidRoomWithoutCache(Long roomId) {
+        // 영속성 컨텍스트를 clear하여 최신 데이터를 보장
+        entityManager.clear();
+        return getRaidRoomInternal(roomId);
+    }
+    
+    /**
+     * 레이드 방 상세 정보 조회 내부 로직 (공통)
+     */
+    private Map<String, Object> getRaidRoomInternal(Long roomId) {
         try {
             Optional<RaidRoom> roomOpt;
             try {
@@ -175,9 +200,9 @@ public class RaidRoomService {
     
     /**
      * 채널 생성
-     * 채널 생성 시 해당 방 캐시 무효화
+     * 캐시 무효화는 트랜잭션 커밋 후 RealtimeBossService에서 처리
      */
-    @CacheEvict(value = "raidRoom", key = "#roomId")
+    @Transactional
     public Map<String, Object> createChannel(Long roomId, Integer channelNumber) {
         Optional<RaidRoom> roomOpt = raidRoomRepository.findById(roomId);
         
@@ -188,6 +213,14 @@ public class RaidRoomService {
         }
         
         RaidRoom room = roomOpt.get();
+        
+        // 중복 채널 번호 체크
+        Optional<Channel> existingChannel = channelRepository.findByRaidRoomIdAndChannelNumber(roomId, channelNumber);
+        if (existingChannel.isPresent()) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "채널 " + channelNumber + "은(는) 이미 존재합니다.");
+            return error;
+        }
         
         Channel channel = new Channel();
         channel.setRaidRoom(room);
@@ -208,8 +241,8 @@ public class RaidRoomService {
     
     /**
      * 채널 삭제
+     * 캐시 무효화는 트랜잭션 커밋 후 RealtimeBossService에서 처리
      */
-    @CacheEvict(value = "raidRoom", key = "#roomId")
     @Transactional
     public Map<String, Object> deleteChannel(Long roomId, Long channelId) {
         Optional<Channel> channelOpt = channelRepository.findById(channelId);
@@ -244,8 +277,8 @@ public class RaidRoomService {
     
     /**
      * 채널 메모 업데이트
+     * 캐시 무효화는 트랜잭션 커밋 후 RealtimeBossService에서 처리
      */
-    @CacheEvict(value = "raidRoom", key = "#roomId")
     @Transactional
     public Map<String, Object> updateChannelMemo(Long roomId, Long channelId, String memo) {
         try {
@@ -289,10 +322,9 @@ public class RaidRoomService {
     
     /**
      * 보스 잡혔다 표시 (토글)
-     * 상태 변경 시 해당 방 캐시 무효화
      * 동시성 제어: 낙관적 잠금으로 동시 업데이트 방지
+     * 캐시 무효화는 트랜잭션 커밋 후 RealtimeBossService에서 처리
      */
-    @CacheEvict(value = "raidRoom", key = "#roomId")
     @Transactional
     public Map<String, Object> markDefeated(Long roomId, Long channelId) {
         try {
@@ -399,8 +431,8 @@ public class RaidRoomService {
     
     /**
      * 채널 보스 색상 업데이트 (용의 경우)
+     * 캐시 무효화는 트랜잭션 커밋 후 RealtimeBossService에서 처리
      */
-    @CacheEvict(value = "raidRoom", key = "#roomId")
     @Transactional
     public Map<String, Object> updateChannelBossColor(Long roomId, Long channelId, String bossType, String bossColor) {
         Optional<Channel> channelOpt = channelRepository.findById(channelId);
@@ -453,8 +485,8 @@ public class RaidRoomService {
     /**
      * 채널 선택/해제 (이동중 표시)
      * 동시성 제어: 낙관적 잠금으로 동시 업데이트 방지
+     * 캐시 무효화는 트랜잭션 커밋 후 RealtimeBossService에서 처리
      */
-    @CacheEvict(value = "raidRoom", key = "#roomId")
     @Transactional
     public Map<String, Object> toggleChannelSelection(Long roomId, Long channelId, Long userId) {
         try {

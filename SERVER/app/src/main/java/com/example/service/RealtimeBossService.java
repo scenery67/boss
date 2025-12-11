@@ -2,6 +2,7 @@ package com.example.service;
 
 import com.example.config.ApplicationContextProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.ApplicationContext;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,9 @@ public class RealtimeBossService {
     
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
+    
+    @Autowired
+    private CacheManager cacheManager;
     
     // 캐시된 보스 목록 데이터
     private Map<String, Object> cachedBosses = null;
@@ -84,16 +88,36 @@ public class RealtimeBossService {
                     .registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
+                            // 트랜잭션 커밋 후 캐시 무효화 (최신 데이터 보장)
+                            evictRaidRoomCache(roomId);
                             executeBroadcast(roomId, "트랜잭션 커밋 후");
                         }
                     });
             } else {
-                // 트랜잭션 외부에서 호출된 경우 즉시 실행
+                // 트랜잭션 외부에서 호출된 경우 즉시 캐시 무효화 및 실행
+                evictRaidRoomCache(roomId);
                 executeBroadcast(roomId, "트랜잭션 외부");
             }
         } catch (Exception e) {
-            // 예외 발생 시에도 브로드캐스트 시도
+            // 예외 발생 시에도 캐시 무효화 및 브로드캐스트 시도
+            evictRaidRoomCache(roomId);
             executeBroadcast(roomId, "예외 처리 중");
+        }
+    }
+    
+    /**
+     * 레이드 방 캐시 무효화 (트랜잭션 커밋 후 실행)
+     */
+    private void evictRaidRoomCache(Long roomId) {
+        try {
+            if (cacheManager != null) {
+                var cache = cacheManager.getCache("raidRoom");
+                if (cache != null) {
+                    cache.evict(roomId);
+                }
+            }
+        } catch (Exception e) {
+            // 캐시 무효화 실패는 무시 (로깅만)
         }
     }
     
@@ -117,10 +141,12 @@ public class RealtimeBossService {
     
     /**
      * 실제 브로드캐스트 실행 (전체 데이터)
+     * 캐시를 우회하여 최신 데이터를 보장
      */
     private void executeBroadcast(Long roomId, String context) {
         try {
-            Map<String, Object> roomData = getRaidRoomService().getRaidRoom(roomId);
+            // 캐시를 우회하여 최신 데이터 조회 (트랜잭션 커밋 후이므로 최신 데이터 보장)
+            Map<String, Object> roomData = getRaidRoomService().getRaidRoomWithoutCache(roomId);
             if (roomData != null) {
                 // 타임스탬프 추가하여 메시지 순서 보장
                 roomData.put("_timestamp", System.currentTimeMillis());

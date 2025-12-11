@@ -18,6 +18,8 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
   const [selectedChannelId, setSelectedChannelId] = useState<number | null>(null);
   const [selectingBossColor, setSelectingBossColor] = useState<{ channelId: number; bossType: string } | null>(null);
   const wsSubscriptionRef = useRef<(() => void) | null>(null);
+  const websocketTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isAddingChannelRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (roomId) {
@@ -91,6 +93,19 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
     // 레이드 방 업데이트 구독
     const unsubscribe = websocketService.subscribe(`/topic/raid-room/${roomId}`, (data: RaidRoomData) => {
       console.log('레이드 방 업데이트 수신:', data);
+      console.log('타임스탬프:', (data as any)._timestamp);
+      
+      // 웹소켓 메시지 수신 시 타임아웃 취소 및 채널 추가 플래그 해제
+      if (websocketTimeoutRef.current) {
+        clearTimeout(websocketTimeoutRef.current);
+        websocketTimeoutRef.current = null;
+        console.log('웹소켓 메시지 수신, 타임아웃 취소');
+      }
+      if (isAddingChannelRef.current) {
+        isAddingChannelRef.current = false;
+        console.log('채널 추가 완료 (웹소켓 메시지 수신)');
+      }
+      
       // 서버에서 받은 데이터로 상태 업데이트
       if (data && data.channels) {
         data.channels = data.channels.map((ch: any) => ({
@@ -105,6 +120,8 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
           );
           if (userChannel) {
             setSelectedChannelId(userChannel.id);
+          } else {
+            // 사용자가 이동중이 아닌 채널에 있으면 선택 해제하지 않음 (로컬 선택 유지)
           }
         }
       }
@@ -116,33 +133,85 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
   };
 
   const handleAddChannel = async () => {
+    // 중복 요청 방지
+    if (isAddingChannelRef.current) {
+      console.log('채널 추가 중... 대기');
+      return;
+    }
+
     const channelNumber = prompt('채널 번호를 입력하세요:');
-    if (channelNumber && roomId && roomData) {
-      try {
-        const result = await createChannel(parseInt(roomId), parseInt(channelNumber));
-        if (result.success) {
-          // 즉시 로컬 상태 업데이트 (임시 채널 추가)
-          const newChannel: Channel = {
-            id: (result as any).channelId || Date.now(), // 임시 ID
-            channelNumber: parseInt(channelNumber),
-            isDefeated: false,
-            memo: '',
-            users: []
-          };
-          setRoomData({
-            ...roomData,
-            channels: [...roomData.channels, newChannel]
-          });
-          
-          // 백그라운드에서 서버 데이터 동기화 (로딩 화면 없이)
-          setTimeout(() => {
-            loadRoomInfo(true, true); // silent 모드
-          }, 100);
+    if (!channelNumber || !roomId || !roomData) return;
+
+    // 이미 존재하는 채널 번호인지 확인
+    const channelNum = parseInt(channelNumber);
+    if (isNaN(channelNum)) {
+      alert('올바른 채널 번호를 입력하세요.');
+      return;
+    }
+
+    const existingChannel = roomData.channels.find(ch => ch.channelNumber === channelNum);
+    if (existingChannel) {
+      alert(`채널 ${channelNum}은(는) 이미 존재합니다.`);
+      return;
+    }
+
+    isAddingChannelRef.current = true;
+
+    // 즉시 로컬 상태 업데이트 (낙관적 업데이트)
+    const tempChannelId = Date.now(); // 임시 ID (에러 처리에서도 사용)
+    const newChannel: Channel = {
+      id: tempChannelId,
+      channelNumber: channelNum,
+      isDefeated: false,
+      memo: '',
+      users: []
+    };
+    setRoomData({
+      ...roomData,
+      channels: [...roomData.channels, newChannel]
+    });
+
+    try {
+      console.log('채널 생성 요청:', channelNumber);
+      const result = await createChannel(parseInt(roomId), channelNum);
+      
+      if (result.success) {
+        console.log('채널 생성 성공, 웹소켓 메시지 대기 중...');
+        // 웹소켓 메시지가 도착하면 서버 데이터로 덮어쓰기됨
+        // 타임아웃 안전장치: 웹소켓이 실패하면 API로 폴백 (1초 후)
+        if (websocketTimeoutRef.current) {
+          clearTimeout(websocketTimeoutRef.current);
         }
-      } catch (err) {
-        console.error('채널 생성 실패:', err);
-        alert('채널 생성에 실패했습니다.');
+        websocketTimeoutRef.current = setTimeout(() => {
+          console.warn('웹소켓 메시지 타임아웃, API로 폴백 새로고침');
+          loadRoomInfo(true, true); // silent 모드
+          websocketTimeoutRef.current = null;
+          isAddingChannelRef.current = false;
+        }, 1000); // 1초로 단축
+      } else {
+        // 실패 시 로컬 상태 롤백
+        setRoomData({
+          ...roomData,
+          channels: roomData.channels.filter(ch => ch.id !== tempChannelId)
+        });
+        const errorMessage = (result as any)?.error || '채널 생성에 실패했습니다.';
+        alert(errorMessage);
+        isAddingChannelRef.current = false;
       }
+    } catch (err) {
+      console.error('채널 생성 실패:', err);
+      // 에러 발생 시 로컬 상태 롤백 (임시 채널 제거)
+      if (roomData) {
+        setRoomData({
+          ...roomData,
+          channels: roomData.channels.filter(ch => ch.id !== tempChannelId)
+        });
+      }
+      const errorMessage = (err as any)?.response?.data?.error || '채널 생성에 실패했습니다.';
+      alert(errorMessage);
+      isAddingChannelRef.current = false;
+      // 에러 발생 시 최신 데이터로 새로고침
+      loadRoomInfo(true, true);
     }
   };
 
