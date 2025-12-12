@@ -1,6 +1,7 @@
 # BOSS 토이 프로젝트
 
 https://scenary.github.io/boss/
+
 TypeScript 클라이언트와 Spring Boot 서버로 구성된 풀스택 애플리케이션입니다.
 
 ## 프로젝트 구조
