@@ -1258,11 +1258,12 @@ body {
 }
 
 .connected-users-section {
-  margin-top: 30px;
+  margin-top: 20px;
   padding: 20px;
   background: #ffffff;
   border-radius: 8px;
-  border: 1px solid #ced4da;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: none;
 }
 
 .connected-users-section h3 {
@@ -1374,12 +1375,17 @@ body {
   box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
 }
 
-.participants-section {
+.users-info-section {
   margin-top: 30px;
+}
+
+.participants-section {
+  margin-top: 0;
   padding: 20px;
   background: #ffffff;
   border-radius: 8px;
-  border: 1px solid #ced4da;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: none;
 }
 
 .participants-header {

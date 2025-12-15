@@ -610,20 +610,9 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
       });
       setSelectedChannelId(null);
       
-      // 백그라운드에서 서버 데이터 동기화 (로딩 화면 없이)
-      setTimeout(() => {
-        loadRoomInfo(true, true); // silent 모드
-      }, 100);
+      // WebSocket이 최신 상태를 브로드캐스트하므로 별도 동기화 불필요
     } catch (err: any) {
-      console.error('채널 삭제 실패:', err);
-      const errorMessage = err.response?.data?.error || err.response?.data?.message || err.message || '채널 삭제에 실패했습니다.';
-      const statusCode = err.response?.status;
-      
-      if (statusCode === 404) {
-        alert('채널 삭제 API가 서버에 구현되지 않았습니다. 백엔드 개발자에게 문의하세요.');
-      } else {
-        alert(errorMessage);
-      }
+      // 에러 발생 시 조용히 처리 (WebSocket이 최신 상태를 전송)
     }
   };
 
@@ -638,16 +627,10 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
       setRoomData({ ...roomData, channels: updatedChannels });
       
       // 백그라운드에서 서버에 저장 (로딩 화면 없이)
+      // WebSocket이 최신 상태를 브로드캐스트하므로 별도 동기화 불필요
       markDefeated(parseInt(roomId), channelId)
-        .then(() => {
-          // 조용히 서버 데이터 동기화
-          setTimeout(() => {
-            loadRoomInfo(true, true); // silent 모드
-          }, 100);
-        })
-        .catch((err) => {
-          console.error('잡혔다 표시 실패:', err);
-          // 에러 발생 시 상태 복원
+        .catch(() => {
+          // 에러 발생 시 상태 복원 및 조용히 처리
           const updatedChannels = roomData.channels.map(ch => 
             ch.id === channelId ? { ...ch, isDefeated: !ch.isDefeated } : ch
           );
@@ -658,10 +641,16 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
     }
   };
 
+  const memoTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   const handleMemoClick = (channel: Channel) => {
     if (roomData?.isCompleted) return;
     const memoValue = channel.memo && channel.memo.trim() !== '' ? channel.memo : '';
     setEditingMemo({ channelId: channel.id, memo: memoValue });
+    // 다음 렌더링 사이클에서 textarea에 포커스
+    setTimeout(() => {
+      memoTextareaRef.current?.focus();
+    }, 0);
   };
 
   const handleMemoSave = async (channelId: number) => {
@@ -678,16 +667,10 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
       setEditingMemo(null);
       
       // 백그라운드에서 서버에 저장 (로딩 화면 없이)
+      // WebSocket이 최신 상태를 브로드캐스트하므로 별도 동기화 불필요
       updateChannelMemo(parseInt(roomId), channelId, memoValue)
-        .then(() => {
-          // 조용히 서버 데이터 동기화
-          setTimeout(() => {
-            loadRoomInfo(true, true); // silent 모드
-          }, 100);
-        })
-        .catch((err) => {
-          console.error('메모 저장 실패:', err);
-          alert('메모 저장에 실패했습니다.');
+        .catch(() => {
+          // 에러 발생 시 조용히 처리 (WebSocket이 최신 상태를 전송)
         });
     } catch (err) {
       console.error('메모 저장 실패:', err);
@@ -758,7 +741,7 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
       // 서버에 저장 (WebSocket으로 자동 업데이트됨)
       await toggleChannelSelection(parseInt(roomId), selectedChannelId, userId);
     } catch (err: any) {
-      alert(err.response?.data?.error || '이동중 표시에 실패했습니다.');
+      // 에러 발생 시 조용히 처리 (WebSocket이 최신 상태를 전송)
     }
   };
 
@@ -778,7 +761,7 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
       // 현재 선택된 채널에서 이동중 해제 (WebSocket으로 자동 업데이트됨)
       await toggleChannelSelection(parseInt(roomId), selectedChannelId, userId);
     } catch (err: any) {
-      alert(err.response?.data?.error || '이동중 해제에 실패했습니다.');
+      // 에러 발생 시 조용히 처리 (WebSocket이 최신 상태를 전송)
     }
   };
   
@@ -817,16 +800,10 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
       
       // 백그라운드에서 서버에 저장 (로딩 화면 없이)
       // 회색인 경우 null을 전송
+      // WebSocket이 최신 상태를 브로드캐스트하므로 별도 동기화 불필요
       updateChannelBossColor(parseInt(roomId), channelId, bossType, colorToSave || '')
-        .then(() => {
-          // 조용히 서버 데이터 동기화
-          setTimeout(() => {
-            loadRoomInfo(true, true); // silent 모드
-          }, 100);
-        })
-        .catch((err) => {
-          console.error('보스 색상 선택 실패:', err);
-          alert('보스 색상 저장에 실패했습니다.');
+        .catch(() => {
+          // 에러 발생 시 조용히 처리 (WebSocket이 최신 상태를 전송)
         });
     } catch (err) {
       console.error('보스 색상 선택 실패:', err);
@@ -1121,8 +1098,16 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
                   {editingMemo?.channelId === channel.id ? (
                     <div className="channel-memo-edit">
                       <textarea
+                        ref={memoTextareaRef}
                         value={editingMemo.memo}
                         onChange={(e) => setEditingMemo({ ...editingMemo, memo: e.target.value })}
+                        onKeyDown={(e) => {
+                          // Enter: 저장, Shift+Enter: 줄바꿈
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleMemoSave(channel.id);
+                          }
+                        }}
                         placeholder="메모를 입력하세요..."
                         className="memo-textarea"
                         rows={3}
@@ -1208,8 +1193,11 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
               })
             )}
           </div>
-          {/* 참석 예정 명단 */}
-          <div className="participants-section">
+        </div>
+        {/* 인원 섹션 */}
+        <div className="users-info-section">
+          {/* 참석 예정 명단 - 주석처리 (기능 숨김) */}
+          {/* <div className="participants-section">
             <div className="participants-header">
               <h3>참석 예정 명단 ({roomData.participants?.length || 0}명)</h3>
               {!roomData.isCompleted && user && user.id && (
@@ -1242,7 +1230,7 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
                 <p>참석 예정 명단이 없습니다.</p>
               </div>
             )}
-          </div>
+          </div> */}
           
           {/* 현재 접속한 사용자 목록 (완료된 레이드가 아닐 때만 표시) */}
           {!roomData.isCompleted && (
@@ -1271,7 +1259,6 @@ const RaidRoomPage: React.FC<RaidRoomPageProps> = ({ user }) => {
               )}
             </div>
           )}
-          
         </div>
       </div>
     </div>

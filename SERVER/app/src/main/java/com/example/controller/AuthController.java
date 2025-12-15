@@ -24,12 +24,42 @@ public class AuthController {
     
     // 헬스 체크
     @GetMapping("/health")
-    public ResponseEntity<Map<String, Object>> health() {
-        logger.info("Health check request received");
+    public ResponseEntity<Map<String, Object>> health(jakarta.servlet.http.HttpServletRequest request) {
+        // 요청 정보 추출
+        String clientIp = getClientIpAddress(request);
+        String userAgent = request.getHeader("User-Agent");
+        String referer = request.getHeader("Referer");
+        String origin = request.getHeader("Origin");
+        
+        logger.info("Health check request received - IP: {}, User-Agent: {}, Origin: {}, Referer: {}", 
+                    clientIp, userAgent, origin, referer);
+        
         Map<String, Object> response = new HashMap<>();
         response.put("status", "ok");
         response.put("message", "서버가 정상적으로 실행 중입니다");
         return ResponseEntity.ok(response);
+    }
+    
+    // 클라이언트 IP 주소 추출 (프록시/로드밸런서 고려)
+    private String getClientIpAddress(jakarta.servlet.http.HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        // X-Forwarded-For는 여러 IP가 있을 수 있으므로 첫 번째 IP만 사용
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        return ip;
     }
     
     // 닉네임으로 로그인 (게스트 사용자, DB에 저장하여 채널 선택 등 기능 사용 가능)
