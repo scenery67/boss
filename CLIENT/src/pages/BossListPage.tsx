@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTodayBosses, createRaidRoom } from '../services/BossService';
-import { User, Boss } from '../types';
+import { User, Boss, Room } from '../types';
 import { websocketService } from '../services/websocket';
 
 interface BossListPageProps {
@@ -120,6 +120,77 @@ const BossListPage: React.FC<BossListPageProps> = ({ user, onLogout }) => {
     return minutes;
   };
 
+  // 특정 보스 타입의 다음 레이드를 찾는 함수 (가장 가까운 미래 레이드)
+  const findNextRaidByBossType = (bossType: string): Room | null => {
+    const now = new Date();
+    let closestRoom: Room | null = null;
+    let closestDateTime: Date | null = null;
+
+    // 해당 보스 타입의 모든 방을 순회하며 가장 가까운 미래 레이드 찾기
+    bosses.forEach((boss) => {
+      // 보스 타입이 일치하는 경우만 확인
+      if (boss.type !== bossType) return;
+      
+      boss.rooms.forEach((room) => {
+        // 완료된 방은 제외
+        if (room.isCompleted) return;
+        
+        // raidDate와 raidTime이 모두 있어야 함
+        if (!room.raidDate || !room.raidTime) return;
+
+        try {
+          // 날짜와 시간을 결합하여 Date 객체 생성
+          const [hours, minutes] = room.raidTime.split(':').map(Number);
+          const raidDate = new Date(room.raidDate);
+          raidDate.setHours(hours, minutes, 0, 0);
+
+          // 현재 시간보다 미래인 레이드만 고려
+          if (raidDate > now) {
+            // 가장 가까운 레이드 찾기
+            if (!closestDateTime || raidDate < closestDateTime) {
+              closestRoom = room;
+              closestDateTime = raidDate;
+            }
+          }
+        } catch (e) {
+          // 날짜/시간 파싱 오류는 무시
+        }
+      });
+    });
+
+    return closestRoom;
+  };
+
+  // 특정 레이드가 해당 보스 타입의 다음 레이드인지 확인하는 함수
+  const isNextRaid = (room: Room, bossType: string): boolean => {
+    const nextRaid = findNextRaidByBossType(bossType);
+    return nextRaid !== null && nextRaid.id === room.id;
+  };
+
+  // 레이드가 1시간 이내에 시작하는지 확인하는 함수
+  const isRaidWithinOneHour = (room: Room): boolean => {
+    if (!room.raidDate || !room.raidTime || room.isCompleted) return false;
+    
+    try {
+      const now = new Date();
+      const [hours, minutes] = room.raidTime.split(':').map(Number);
+      const raidDate = new Date(room.raidDate);
+      raidDate.setHours(hours, minutes, 0, 0);
+
+      // 미래 레이드만 확인
+      if (raidDate <= now) return false;
+
+      // 남은 시간 계산 (분 단위)
+      const timeDiff = raidDate.getTime() - now.getTime();
+      const minutesRemaining = Math.floor(timeDiff / (1000 * 60));
+
+      // 1시간 이내이고 아직 시작하지 않은 경우
+      return minutesRemaining > 0 && minutesRemaining <= 60;
+    } catch (e) {
+      return false;
+    }
+  };
+
   return (
     <div className="boss-list-container">
       <div className="header">
@@ -171,36 +242,45 @@ const BossListPage: React.FC<BossListPageProps> = ({ user, onLogout }) => {
                 {boss.description && <p>{boss.description}</p>}
                 <div className="rooms">
                   {boss.rooms.length > 0 ? (
-                    boss.rooms.map((room) => (
-                      <div 
-                        key={room.id} 
-                        className="room-card"
-                        onClick={() => handleEnterRoom(room.id)}
-                      >
-                        <div className="room-info">
-                          <div className="room-header">
-                            {room.bossName && (
-                              <span className="boss-badge">{room.bossName}</span>
-                            )}
-                          </div>
-                          <div className="room-date-time">
-                            {room.raidDate && (
-                              <div className="room-date">
-                                {new Date(room.raidDate).toLocaleDateString('ko-KR', {
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric',
-                                  weekday: 'short'
-                                })}
+                    boss.rooms.map((room) => {
+                      const isUrgent = isRaidWithinOneHour(room);
+                      const isNext = boss.type ? isNextRaid(room, boss.type) : false;
+                      return (
+                        <div 
+                          key={room.id} 
+                          className={`room-card ${isUrgent ? 'urgent' : ''}`}
+                          onClick={() => handleEnterRoom(room.id)}
+                        >
+                          <div className="room-info">
+                            <div className="room-header">
+                              {room.bossName && (
+                                <span className="boss-badge">{room.bossName}</span>
+                              )}
+                              {isUrgent ? (
+                                <span className="urgent-badge">⚠️ 곧 시작!</span>
+                              ) : isNext ? (
+                                <span className="next-raid-badge">⏰ 다음 레이드</span>
+                              ) : null}
+                            </div>
+                            <div className="room-date-time">
+                              {room.raidDate && (
+                                <div className="room-date">
+                                  {new Date(room.raidDate).toLocaleDateString('ko-KR', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric',
+                                    weekday: 'short'
+                                  })}
+                                </div>
+                              )}
+                              <div className="room-time">
+                                ⏰ {room.raidTime && room.raidTime !== '' ? `${room.raidTime} 레이드` : `시간 미정`}
                               </div>
-                            )}
-                            <div className="room-time">
-                              ⏰ {room.raidTime && room.raidTime !== '' ? `${room.raidTime} 레이드` : `시간 미정`}
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <p className="no-rooms">레이드가 없습니다. 위의 "새 레이드 생성" 버튼을 눌러주세요.</p>
                   )}

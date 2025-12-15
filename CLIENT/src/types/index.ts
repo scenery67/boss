@@ -25,6 +25,7 @@ export interface Room {
   createdAt?: string;
   bossName?: string;
   bossType?: string;
+  isCompleted?: boolean;
 }
 
 export interface Channel {

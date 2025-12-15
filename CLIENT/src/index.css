@@ -84,6 +84,17 @@ body {
   }
 }
 
+@keyframes pulse-strong {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 6px 20px rgba(255, 193, 7, 0.5);
+  }
+}
+
 .server-status-indicator:hover::after {
   content: attr(title);
   position: absolute;
@@ -473,6 +484,50 @@ body {
 .room-card:active {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.12);
+}
+
+.room-card.urgent {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffe69c 100%);
+  border: 2px solid #ffc107;
+  animation: pulse-strong 2s infinite;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+.room-card.urgent:hover {
+  background: linear-gradient(135deg, #ffe69c 0%, #ffd54f 100%);
+  border-color: #ff9800;
+  box-shadow: 0 6px 20px rgba(255, 193, 7, 0.5);
+  transform: translateY(-4px);
+}
+
+.room-card.urgent::before {
+  background: linear-gradient(180deg, #ffc107 0%, #ff9800 100%);
+  transform: scaleY(1);
+}
+
+.urgent-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(255, 152, 0, 0.4);
+  margin-left: 8px;
+  animation: pulse 1.5s infinite;
+}
+
+.next-raid-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #2196F3 0%, #1976d2 100%);
+  color: white;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.4);
+  margin-left: 8px;
 }
 
 .room-card .room-info {
