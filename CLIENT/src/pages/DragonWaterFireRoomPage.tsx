@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRaidRoom, createChannel, deleteChannel, createChannelsBatch, updateDragonDefeatedTime, getTodayBosses, createRaidRoom } from '../services/BossService';
 import { User, RaidRoomData, Channel } from '../types';
@@ -217,84 +217,30 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
   };
 
   // 수룡 재젠 시간 계산
-  const getWaterDragonRespawnTime = (defeatedAt: string | undefined): Date | null => {
+  const getWaterDragonRespawnTime = useCallback((defeatedAt: string | undefined): Date | null => {
     if (!defeatedAt) return null;
     const defeated = new Date(defeatedAt);
     const respawn = new Date(defeated.getTime() + waterRespawnMinutes * 60 * 1000);
     return respawn;
-  };
+  }, [waterRespawnMinutes]);
 
   // 화룡 재젠 시간 계산
-  const getFireDragonRespawnTime = (defeatedAt: string | undefined): Date | null => {
+  const getFireDragonRespawnTime = useCallback((defeatedAt: string | undefined): Date | null => {
     if (!defeatedAt) return null;
     const defeated = new Date(defeatedAt);
     const respawn = new Date(defeated.getTime() + fireRespawnMinutes * 60 * 1000);
     return respawn;
-  };
+  }, [fireRespawnMinutes]);
 
   // 남은 시간 계산 (분 단위)
-  const getRemainingMinutes = (respawnTime: Date | null): number | null => {
+  const getRemainingMinutes = useCallback((respawnTime: Date | null): number | null => {
     if (!respawnTime) return null;
     const now = new Date();
     const diff = respawnTime.getTime() - now.getTime();
     return Math.floor(diff / (1000 * 60));
-  };
+  }, []);
 
-  // 젠 상태별 채널 분류
-  const getRespawnStatusChannels = () => {
-    if (!roomData) return { now: [], soon: [], waiting: [], done: [] };
-    
-    const now: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
-    const soon: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
-    const waiting: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
-    const done: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
-    
-    roomData.channels.forEach(channel => {
-      const waterRespawn = getWaterDragonRespawnTime(channel.waterDragonDefeatedAt);
-      const fireRespawn = getFireDragonRespawnTime(channel.fireDragonDefeatedAt);
-      
-      if (waterRespawn && channel.waterDragonDefeatedAt) {
-        const remaining = getRemainingMinutes(waterRespawn);
-        if (remaining !== null) {
-          const item = { channel, dragonType: 'water' as const, respawnTime: waterRespawn, remaining };
-          if (remaining >= -5 && remaining <= 5) {
-            now.push(item);
-          } else if (remaining > 5 && remaining <= 10) {
-            soon.push(item);
-          } else if (remaining > 10) {
-            waiting.push(item);
-          } else {
-            done.push(item);
-          }
-        }
-      }
-      
-      if (fireRespawn && channel.fireDragonDefeatedAt) {
-        const remaining = getRemainingMinutes(fireRespawn);
-        if (remaining !== null) {
-          const item = { channel, dragonType: 'fire' as const, respawnTime: fireRespawn, remaining };
-          if (remaining >= -5 && remaining <= 5) {
-            now.push(item);
-          } else if (remaining > 5 && remaining <= 10) {
-            soon.push(item);
-          } else if (remaining > 10) {
-            waiting.push(item);
-          } else {
-            done.push(item);
-          }
-        }
-      }
-    });
-    
-    // 각 그룹 내에서 재젠 시간 순으로 정렬
-    const sortByTime = (a: typeof now[0], b: typeof now[0]) => a.respawnTime.getTime() - b.respawnTime.getTime();
-    now.sort(sortByTime);
-    soon.sort(sortByTime);
-    waiting.sort(sortByTime);
-    done.sort(sortByTime);
-    
-    return { now, soon, waiting, done };
-  };
+  // 젠 상태별 채널 분류 (useMemo 내부에서 직접 계산)
 
   const processImageFromClipboard = async (file: File) => {
     if (!roomIdRef.current || !roomData) return;
@@ -885,8 +831,59 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
 
   // roomData와 currentTime이 변경될 때마다 상태 재계산
   const respawnStatusChannels = useMemo(() => {
-    return getRespawnStatusChannels();
-  }, [roomData, currentTime, waterRespawnMinutes, fireRespawnMinutes]);
+    if (!roomData) return { now: [], soon: [], waiting: [], done: [] };
+    
+    const now: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
+    const soon: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
+    const waiting: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
+    const done: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
+    
+    roomData.channels.forEach(channel => {
+      const waterRespawn = getWaterDragonRespawnTime(channel.waterDragonDefeatedAt);
+      const fireRespawn = getFireDragonRespawnTime(channel.fireDragonDefeatedAt);
+      
+      if (waterRespawn && channel.waterDragonDefeatedAt) {
+        const remaining = getRemainingMinutes(waterRespawn);
+        if (remaining !== null) {
+          const item = { channel, dragonType: 'water' as const, respawnTime: waterRespawn, remaining };
+          if (remaining >= -5 && remaining <= 5) {
+            now.push(item);
+          } else if (remaining > 5 && remaining <= 10) {
+            soon.push(item);
+          } else if (remaining > 10) {
+            waiting.push(item);
+          } else {
+            done.push(item);
+          }
+        }
+      }
+      
+      if (fireRespawn && channel.fireDragonDefeatedAt) {
+        const remaining = getRemainingMinutes(fireRespawn);
+        if (remaining !== null) {
+          const item = { channel, dragonType: 'fire' as const, respawnTime: fireRespawn, remaining };
+          if (remaining >= -5 && remaining <= 5) {
+            now.push(item);
+          } else if (remaining > 5 && remaining <= 10) {
+            soon.push(item);
+          } else if (remaining > 10) {
+            waiting.push(item);
+          } else {
+            done.push(item);
+          }
+        }
+      }
+    });
+    
+    // 각 그룹 내에서 재젠 시간 순으로 정렬
+    const sortByTime = (a: typeof now[0], b: typeof now[0]) => a.respawnTime.getTime() - b.respawnTime.getTime();
+    now.sort(sortByTime);
+    soon.sort(sortByTime);
+    waiting.sort(sortByTime);
+    done.sort(sortByTime);
+    
+    return { now, soon, waiting, done };
+  }, [roomData, currentTime, getWaterDragonRespawnTime, getFireDragonRespawnTime, getRemainingMinutes]);
 
   return (
     <div className="raid-room-container">
