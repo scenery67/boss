@@ -147,7 +147,9 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
       }
     } catch (err: any) {
       console.error('수화룡 레이드 방 로드 실패:', err);
-      setError('수화룡 레이드 방을 불러올 수 없습니다: ' + (err.message || '알 수 없는 오류'));
+      const errorMessage = err?.response?.data?.error || err?.message || '알 수 없는 오류';
+      const statusCode = err?.response?.status;
+      setError(`수화룡 레이드 방을 불러올 수 없습니다: ${errorMessage}${statusCode ? ` (${statusCode})` : ''}`);
     } finally {
       setLoading(false);
     }

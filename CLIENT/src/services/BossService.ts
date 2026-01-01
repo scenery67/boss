@@ -83,11 +83,17 @@ export const markDefeated = async (roomId: number, channelId: number): Promise<A
 };
 
 export const createRaidRoom = async (bossType: string, raidDate: string, raidTime: string): Promise<ApiResponse & { roomId?: number }> => {
-  const response = await apiClient.post('/api/bosses/rooms', {
+  const requestBody: any = {
     bossType,
-    raidDate,
-    raidTime
-  });
+    raidDate
+  };
+  
+  // raidTime이 빈 문자열이 아닐 때만 포함
+  if (raidTime && raidTime.trim() !== '') {
+    requestBody.raidTime = raidTime;
+  }
+  
+  const response = await apiClient.post('/api/bosses/rooms', requestBody);
   
   // 방 생성 시 오늘의 보스 목록 캐시 완전히 무효화
   cache.delete(getTodayBossesCacheKey());
