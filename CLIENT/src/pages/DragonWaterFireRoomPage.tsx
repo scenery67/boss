@@ -1087,11 +1087,11 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
             </div>
             <div style={{ fontSize: '11px', color: '#888', lineHeight: '1.4', maxWidth: '500px', padding: '4px 0' }}>
               <span style={{ display: 'inline-block', marginRight: '8px' }}>💡 <strong>사용법:</strong></span>
-              <span style={{ display: 'inline-block', marginRight: '6px' }}>방금 잡힘</span>
+              <span style={{ display: 'inline-block', marginRight: '6px' }}>방금</span>
               <span style={{ display: 'inline-block', marginRight: '6px' }}>•</span>
-              <span style={{ display: 'inline-block', marginRight: '6px' }}>5분 전 잡힘</span>
+              <span style={{ display: 'inline-block', marginRight: '6px' }}>5분 전</span>
               <span style={{ display: 'inline-block', marginRight: '6px' }}>•</span>
-              <span style={{ display: 'inline-block', marginRight: '6px' }}>수동 입력(2022=20:22)</span>
+              <span style={{ display: 'inline-block', marginRight: '6px' }}>수동(2022=20:22)</span>
               <span style={{ display: 'inline-block', marginRight: '6px' }}>•</span>
               <span style={{ display: 'inline-block' }}>젠 예상시간 수정 가능</span>
             </div>
@@ -1185,13 +1185,13 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
                           onClick={() => handleDragonTimeClick(channel.id, 'water')}
                           style={{ padding: '5px 10px', fontSize: '12px', background: '#bbdefb', color: '#1565c0', border: '1px solid #64b5f6', borderRadius: '4px', cursor: 'pointer' }}
                         >
-                          방금 잡힘
+                          방금
                         </button>
                         <button
                           onClick={() => handleDragonTime5MinutesAgo(channel.id, 'water')}
                           style={{ padding: '5px 10px', fontSize: '12px', background: '#ffe0b2', color: '#e65100', border: '1px solid #ffb74d', borderRadius: '4px', cursor: 'pointer' }}
                         >
-                          5분 전 잡힘
+                          5분 전
                         </button>
                         {dragonTimeInput?.channelId === channel.id && dragonTimeInput?.dragonType === 'water' ? (
                           <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1261,7 +1261,7 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
                             }}
                             style={{ padding: '5px 10px', fontSize: '12px', background: '#e0e0e0', color: '#424242', border: '1px solid #9e9e9e', borderRadius: '4px', cursor: 'pointer' }}
                           >
-                            수동 시간 입력
+                            수동
                           </button>
                         )}
                       </div>
@@ -1369,13 +1369,13 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
                           onClick={() => handleDragonTimeClick(channel.id, 'fire')}
                           style={{ padding: '5px 10px', fontSize: '12px', background: '#bbdefb', color: '#1565c0', border: '1px solid #64b5f6', borderRadius: '4px', cursor: 'pointer' }}
                         >
-                          방금 잡힘
+                          방금
                         </button>
                         <button
                           onClick={() => handleDragonTime5MinutesAgo(channel.id, 'fire')}
                           style={{ padding: '5px 10px', fontSize: '12px', background: '#ffe0b2', color: '#e65100', border: '1px solid #ffb74d', borderRadius: '4px', cursor: 'pointer' }}
                         >
-                          5분 전 잡힘
+                          5분 전
                         </button>
                         {dragonTimeInput?.channelId === channel.id && dragonTimeInput?.dragonType === 'fire' ? (
                           <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1444,7 +1444,7 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
                             }}
                             style={{ padding: '5px 10px', fontSize: '12px', background: '#e0e0e0', color: '#424242', border: '1px solid #9e9e9e', borderRadius: '4px', cursor: 'pointer' }}
                           >
-                            수동 시간 입력
+                            수동
                           </button>
                         )}
                       </div>
