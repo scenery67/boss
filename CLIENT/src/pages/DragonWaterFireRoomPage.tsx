@@ -986,7 +986,7 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
       
       <div className="content">
         {/* 젠 상태별 채널 표시 */}
-        {(respawnStatusChannels.now.length > 0 || respawnStatusChannels.soon.length > 0 || respawnStatusChannels.waiting.length > 0) && (
+        {(respawnStatusChannels.now.length > 0 || respawnStatusChannels.soon.length > 0) && (
           <div style={{ marginBottom: '5px' }}>
             {/* 지금 젠됨 (0~5분) */}
             {respawnStatusChannels.now.length > 0 && (
@@ -998,7 +998,7 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
                 marginBottom: '5px'
               }}>
                 <h3 style={{ margin: '0 0 12px 0', color: '#c62828', fontSize: '16px', fontWeight: 'bold' }}>
-                  🔴 지금 젠됨! (±5분)
+                  🔴 지금 젠됨! (±5분) <span style={{ fontSize: '14px', fontWeight: 'normal' }}>({respawnStatusChannels.now.length}개)</span>
                 </h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {respawnStatusChannels.now.map(({ channel, dragonType, respawnTime, remaining }) => {
@@ -1040,7 +1040,7 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
                 marginBottom: '5px'
               }}>
                 <h3 style={{ margin: '0 0 12px 0', color: '#e65100', fontSize: '16px', fontWeight: 'bold' }}>
-                  🟠 곧 젠됨 (5~10분)
+                  🟠 곧 젠됨 (5~10분) <span style={{ fontSize: '14px', fontWeight: 'normal' }}>({respawnStatusChannels.soon.length}개)</span>
                 </h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {respawnStatusChannels.soon.map(({ channel, dragonType, respawnTime, remaining }) => {
@@ -1063,48 +1063,6 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
                           젠 예상 시간: {respawnTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </div>
                         <div style={{ fontSize: '13px', color: '#e65100', fontWeight: 'bold', marginTop: '4px' }}>
-                          젠까지 남은 시간: {remaining}분
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            
-            {/* 젠 대기 (10분 이상) */}
-            {respawnStatusChannels.waiting.length > 0 && (
-              <div style={{
-                background: '#fffde7',
-                border: '2px solid #ffc107',
-                borderRadius: '8px',
-                padding: '10px',
-                marginBottom: '5px'
-              }}>
-                <h3 style={{ margin: '0 0 12px 0', color: '#f57f17', fontSize: '16px', fontWeight: 'bold' }}>
-                  🟡 젠 대기 (10분 이상)
-                </h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {respawnStatusChannels.waiting.map(({ channel, dragonType, respawnTime, remaining }) => {
-                    return (
-                      <div key={`${channel.id}-${dragonType}`} style={{
-                        background: 'white',
-                        padding: '12px 16px',
-                        borderRadius: '6px',
-                        border: '2px solid #ffc107',
-                        boxShadow: '0 2px 4px rgba(255, 193, 7, 0.2)',
-                        minWidth: '200px'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                          <strong style={{ fontSize: '15px' }}>채널 {channel.channelNumber}</strong>
-                          <span style={{ marginLeft: '8px', fontSize: '14px' }}>
-                            {dragonType === 'water' ? '💧 수룡' : '🔥 화룡'}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                          젠 예상 시간: {respawnTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                        </div>
-                        <div style={{ fontSize: '13px', color: '#f57f17', fontWeight: 'bold', marginTop: '4px' }}>
                           젠까지 남은 시간: {remaining}분
                         </div>
                       </div>
