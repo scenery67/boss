@@ -838,13 +838,28 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
     const waiting: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
     const done: Array<{ channel: Channel; dragonType: 'water' | 'fire'; respawnTime: Date; remaining: number }> = [];
     
+    const nowTime = new Date();
+    
     roomData.channels.forEach(channel => {
-      const waterRespawn = getWaterDragonRespawnTime(channel.waterDragonDefeatedAt);
-      const fireRespawn = getFireDragonRespawnTime(channel.fireDragonDefeatedAt);
+      // 수룡 재젠 시간 계산
+      let waterRespawn: Date | null = null;
+      if (channel.waterDragonDefeatedAt) {
+        const defeated = new Date(channel.waterDragonDefeatedAt);
+        waterRespawn = new Date(defeated.getTime() + waterRespawnMinutes * 60 * 1000);
+      }
       
+      // 화룡 재젠 시간 계산
+      let fireRespawn: Date | null = null;
+      if (channel.fireDragonDefeatedAt) {
+        const defeated = new Date(channel.fireDragonDefeatedAt);
+        fireRespawn = new Date(defeated.getTime() + fireRespawnMinutes * 60 * 1000);
+      }
+      
+      // 수룡 처리
       if (waterRespawn && channel.waterDragonDefeatedAt) {
-        const remaining = getRemainingMinutes(waterRespawn);
-        if (remaining !== null) {
+        const diff = waterRespawn.getTime() - nowTime.getTime();
+        const remaining = Math.floor(diff / (1000 * 60));
+        if (!isNaN(remaining)) {
           const item = { channel, dragonType: 'water' as const, respawnTime: waterRespawn, remaining };
           if (remaining >= -5 && remaining <= 5) {
             now.push(item);
@@ -858,9 +873,11 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
         }
       }
       
+      // 화룡 처리
       if (fireRespawn && channel.fireDragonDefeatedAt) {
-        const remaining = getRemainingMinutes(fireRespawn);
-        if (remaining !== null) {
+        const diff = fireRespawn.getTime() - nowTime.getTime();
+        const remaining = Math.floor(diff / (1000 * 60));
+        if (!isNaN(remaining)) {
           const item = { channel, dragonType: 'fire' as const, respawnTime: fireRespawn, remaining };
           if (remaining >= -5 && remaining <= 5) {
             now.push(item);
@@ -883,7 +900,7 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
     done.sort(sortByTime);
     
     return { now, soon, waiting, done };
-  }, [roomData, currentTime, getWaterDragonRespawnTime, getFireDragonRespawnTime, getRemainingMinutes]);
+  }, [roomData, currentTime, waterRespawnMinutes, fireRespawnMinutes]);
 
   return (
     <div className="raid-room-container">
