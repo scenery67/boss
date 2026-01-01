@@ -779,6 +779,29 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
     }
   };
 
+  const handleResetDragonTime = async (channelId: number, dragonType: 'water' | 'fire') => {
+    if (!roomIdRef.current || !roomData) return;
+    
+    const channel = roomData.channels.find(ch => ch.id === channelId);
+    if (!channel) return;
+    
+    const dragonName = dragonType === 'water' ? '수룡' : '화룡';
+    if (!window.confirm(`채널 ${channel.channelNumber}의 ${dragonName} 잡힌 시간을 초기화하시겠습니까?`)) {
+      return;
+    }
+    
+    try {
+      await updateDragonDefeatedTime(roomIdRef.current, channelId, dragonType, '');
+      // 웹소켓을 통해 자동으로 업데이트됨
+      await loadWaterFireDragonRoom();
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.error || error?.message || `${dragonName} 정보 초기화에 실패했습니다.`;
+      if (!error?.code || error.code !== 'ECONNABORTED') {
+        alert(`${dragonName} 정보 초기화 실패: ${errorMessage}`);
+      }
+    }
+  };
+
   const handleToggleChannelSelection = (channelId: number) => {
     setSelectedChannels(prev => {
       const newSet = new Set(prev);
@@ -1177,8 +1200,28 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
                     
                     {/* 수룡 */}
                     <div style={{ marginBottom: '15px', padding: '10px', background: '#f0f8ff', borderRadius: '4px', border: '2px solid #2196F3' }}>
-                      <div style={{ marginBottom: '8px' }}>
+                      <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <strong style={{ fontSize: '14px' }}>💧 수룡</strong>
+                        {channel.waterDragonDefeatedAt && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleResetDragonTime(channel.id, 'water');
+                            }}
+                            style={{
+                              padding: '3px 6px',
+                              fontSize: '10px',
+                              background: '#ffebee',
+                              color: '#c62828',
+                              border: '1px solid #ef5350',
+                              borderRadius: '3px',
+                              cursor: 'pointer'
+                            }}
+                            title="수룡 시간 초기화"
+                          >
+                            리셋
+                          </button>
+                        )}
                       </div>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }} onClick={(e) => e.stopPropagation()}>
                         <button
@@ -1361,8 +1404,28 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
                     
                     {/* 화룡 */}
                     <div style={{ padding: '10px', background: '#fff5f5', borderRadius: '4px', border: '2px solid #f44336' }}>
-                      <div style={{ marginBottom: '8px' }}>
+                      <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <strong style={{ fontSize: '14px' }}>🔥 화룡</strong>
+                        {channel.fireDragonDefeatedAt && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleResetDragonTime(channel.id, 'fire');
+                            }}
+                            style={{
+                              padding: '3px 6px',
+                              fontSize: '10px',
+                              background: '#ffebee',
+                              color: '#c62828',
+                              border: '1px solid #ef5350',
+                              borderRadius: '3px',
+                              cursor: 'pointer'
+                            }}
+                            title="화룡 시간 초기화"
+                          >
+                            리셋
+                          </button>
+                        )}
                       </div>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }} onClick={(e) => e.stopPropagation()}>
                         <button
