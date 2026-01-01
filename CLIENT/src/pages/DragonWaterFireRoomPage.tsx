@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRaidRoom, createChannel, deleteChannel, createChannelsBatch, updateDragonDefeatedTime, getTodayBosses, createRaidRoom } from '../services/BossService';
 import { User, RaidRoomData, Channel } from '../types';
@@ -860,7 +860,10 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
     return <div style={{ color: 'red' }}>{error || '방 정보를 불러올 수 없습니다.'}</div>;
   }
 
-  const respawnStatusChannels = getRespawnStatusChannels();
+  // roomData와 currentTime이 변경될 때마다 상태 재계산
+  const respawnStatusChannels = useMemo(() => {
+    return getRespawnStatusChannels();
+  }, [roomData, currentTime, waterRespawnMinutes, fireRespawnMinutes]);
 
   return (
     <div className="raid-room-container">
