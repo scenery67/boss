@@ -52,9 +52,18 @@ public class BossController {
             LocalDate raidDate = LocalDate.parse(dateStr);
             LocalTime raidTime = null;
             
-            // 수화룡 레이드는 시간이 선택사항
-            if (timeStr != null && !timeStr.isEmpty()) {
-                raidTime = LocalTime.parse(timeStr);
+            // 수화룡 레이드(DRAGON_WATER_FIRE)는 시간이 선택사항
+            // 다른 보스 타입도 시간이 선택사항일 수 있으므로, 빈 문자열이 아닐 때만 파싱
+            if (timeStr != null && !timeStr.trim().isEmpty()) {
+                try {
+                    raidTime = LocalTime.parse(timeStr);
+                } catch (Exception e) {
+                    // 시간 파싱 실패 시 에러 반환 (수화룡 레이드가 아닌 경우)
+                    if (!bossType.equalsIgnoreCase("DRAGON_WATER_FIRE")) {
+                        return ResponseUtil.badRequest("올바른 레이드 시간 형식을 입력해주세요 (예: HH:mm)");
+                    }
+                    // 수화룡 레이드는 시간 파싱 실패해도 null로 처리 (선택사항)
+                }
             }
             
             Map<String, Object> response = bossService.createRaidRoom(bossType, raidDate, raidTime);
