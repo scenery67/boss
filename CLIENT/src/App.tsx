@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import BossListPage from './pages/BossListPage';
 import RaidRoomPage from './pages/RaidRoomPage';
 import CompletedRoomsPage from './pages/CompletedRoomsPage';
+import DragonWaterFireRoomPage from './pages/DragonWaterFireRoomPage';
 import { User } from './types';
 import { getBackendUrl } from './services/api';
 
@@ -97,6 +98,16 @@ function App() {
           element={
             user ? (
               <RaidRoomPage user={user} />
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/water-fire-dragon"
+          element={
+            user ? (
+              <DragonWaterFireRoomPage user={user} />
             ) : (
               <Navigate to="/login" replace />
             )

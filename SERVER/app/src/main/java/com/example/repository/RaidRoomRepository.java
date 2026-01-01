@@ -35,5 +35,12 @@ public interface RaidRoomRepository extends JpaRepository<RaidRoom, Long> {
            "LEFT JOIN FETCH r.channels c " +
            "WHERE r.id = :roomId")
     Optional<RaidRoom> findByIdWithChannels(@Param("roomId") Long roomId);
+    
+    // 수화룡 레이드 방 찾기 (날짜 무관, 완료되지 않은 것만)
+    @Query("SELECT r FROM RaidRoom r " +
+           "WHERE r.boss.type = :bossType " +
+           "AND (r.isCompleted = false OR r.isCompleted IS NULL) " +
+           "ORDER BY r.createdAt ASC")
+    List<RaidRoom> findActiveByBossType(@Param("bossType") com.example.entity.BossType bossType);
 }
 

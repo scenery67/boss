@@ -157,6 +157,9 @@ public class BossService {
                     } else if (bossType == BossType.SKELETON_KING) {
                         newBoss.setName("해골왕");
                         newBoss.setDescription("무시무시한 해골왕 보스");
+                    } else if (bossType == BossType.DRAGON_WATER_FIRE) {
+                        newBoss.setName("수화룡");
+                        newBoss.setDescription("수룡과 화룡이 함께 젠되는 레이드");
                     }
                     
                     boss = bossRepository.save(newBoss);
@@ -169,25 +172,57 @@ public class BossService {
                 return error;
             }
             
-            // 같은 날짜, 같은 시간, 같은 보스의 방이 이미 있는지 확인
-            List<RaidRoom> existingRooms = raidRoomRepository.findByRaidDate(raidDate);
-            Optional<RaidRoom> duplicateRoom = existingRooms.stream()
-                .filter(room -> room.getBoss() != null && room.getBoss().getId().equals(boss.getId()))
-                .filter(room -> room.getRaidTime() != null && room.getRaidTime().equals(raidTime))
-                .findFirst();
-            
-            if (duplicateRoom.isPresent()) {
-                Map<String, Object> error = new HashMap<>();
-                error.put("error", "해당 날짜와 시간에 이미 레이드 방이 생성되어 있습니다");
-                return error;
-            }
-            
-            // 같은 종류의 레이드 방이 3개 이상인지 확인 (완료되지 않은 것만 카운트)
-            List<RaidRoom> activeRooms = raidRoomRepository.findActiveByRaidDateAndBossId(raidDate, boss.getId());
-            if (activeRooms.size() >= 3) {
-                Map<String, Object> error = new HashMap<>();
-                error.put("error", "같은 종류의 레이드는 최대 3개까지만 생성할 수 있습니다. 완료된 레이드를 정리해주세요.");
-                return error;
+            // 수화룡 레이드는 날짜/시간과 관계없이 하나만 존재
+            if (bossType == BossType.DRAGON_WATER_FIRE) {
+                List<RaidRoom> existingWaterFireRooms = raidRoomRepository.findActiveByBossType(bossType);
+                if (!existingWaterFireRooms.isEmpty()) {
+                    // 기존 수화룡 레이드 방이 있으면 그 방 반환
+                    RaidRoom existingRoom = existingWaterFireRooms.get(0);
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("success", true);
+                    response.put("roomId", existingRoom.getId());
+                    response.put("bossId", boss.getId());
+                    response.put("bossName", boss.getName());
+                    response.put("bossType", boss.getType().name());
+                    response.put("raidDate", existingRoom.getRaidDate() != null ? existingRoom.getRaidDate().toString() : "");
+                    response.put("raidTime", existingRoom.getRaidTime() != null ? existingRoom.getRaidTime().toString() : null);
+                    response.put("channelCount", existingRoom.getChannels() != null ? existingRoom.getChannels().size() : 0);
+                    response.put("message", "기존 수화룡 레이드 방을 사용합니다");
+                    return response;
+                }
+            } else {
+                // 다른 보스 타입은 기존 로직 사용
+                // 같은 날짜, 같은 시간, 같은 보스의 방이 이미 있는지 확인
+                List<RaidRoom> existingRooms = raidRoomRepository.findByRaidDate(raidDate);
+                Optional<RaidRoom> duplicateRoom = existingRooms.stream()
+                    .filter(room -> room.getBoss() != null && room.getBoss().getId().equals(boss.getId()))
+                    .filter(room -> {
+                        // 시간이 둘 다 null이면 같은 것으로 간주
+                        if (raidTime == null && room.getRaidTime() == null) {
+                            return true;
+                        }
+                        // 둘 다 null이 아니면 시간 비교
+                        if (raidTime != null && room.getRaidTime() != null) {
+                            return room.getRaidTime().equals(raidTime);
+                        }
+                        // 하나만 null이면 다른 것으로 간주
+                        return false;
+                    })
+                    .findFirst();
+                
+                if (duplicateRoom.isPresent()) {
+                    Map<String, Object> error = new HashMap<>();
+                    error.put("error", "해당 날짜와 시간에 이미 레이드 방이 생성되어 있습니다");
+                    return error;
+                }
+                
+                // 같은 종류의 레이드 방이 3개 이상인지 확인 (완료되지 않은 것만 카운트)
+                List<RaidRoom> activeRooms = raidRoomRepository.findActiveByRaidDateAndBossId(raidDate, boss.getId());
+                if (activeRooms.size() >= 3) {
+                    Map<String, Object> error = new HashMap<>();
+                    error.put("error", "같은 종류의 레이드는 최대 3개까지만 생성할 수 있습니다. 완료된 레이드를 정리해주세요.");
+                    return error;
+                }
             }
             
             // 새 레이드 방 생성

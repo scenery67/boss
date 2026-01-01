@@ -47,6 +47,13 @@ public class Channel {
     @Column(name = "boss_gam_color", length = 20)
     private String bossGamColor; // 감 보스 색상
     
+    // 수화룡 레이드용 필드
+    @Column(name = "water_dragon_defeated_at")
+    private LocalDateTime waterDragonDefeatedAt; // 수룡 잡힌 시간
+    
+    @Column(name = "fire_dragon_defeated_at")
+    private LocalDateTime fireDragonDefeatedAt; // 화룡 잡힌 시간
+    
     // 채널에 있는 유저들 (이동중 포함)
     @OneToMany(mappedBy = "channel", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ChannelUser> channelUsers = new ArrayList<>();
@@ -101,6 +108,12 @@ public class Channel {
     
     public String getBossGamColor() { return bossGamColor; }
     public void setBossGamColor(String bossGamColor) { this.bossGamColor = bossGamColor; }
+    
+    public LocalDateTime getWaterDragonDefeatedAt() { return waterDragonDefeatedAt; }
+    public void setWaterDragonDefeatedAt(LocalDateTime waterDragonDefeatedAt) { this.waterDragonDefeatedAt = waterDragonDefeatedAt; }
+    
+    public LocalDateTime getFireDragonDefeatedAt() { return fireDragonDefeatedAt; }
+    public void setFireDragonDefeatedAt(LocalDateTime fireDragonDefeatedAt) { this.fireDragonDefeatedAt = fireDragonDefeatedAt; }
     
     // public Long getVersion() { return version; }
     // public void setVersion(Long version) { this.version = version; }

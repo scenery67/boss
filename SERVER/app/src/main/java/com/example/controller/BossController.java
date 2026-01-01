@@ -49,12 +49,13 @@ public class BossController {
                 return ResponseUtil.badRequest("레이드 날짜를 선택해주세요");
             }
             
-            if (timeStr == null || timeStr.isEmpty()) {
-                return ResponseUtil.badRequest("레이드 시간을 선택해주세요");
-            }
-            
             LocalDate raidDate = LocalDate.parse(dateStr);
-            LocalTime raidTime = LocalTime.parse(timeStr);
+            LocalTime raidTime = null;
+            
+            // 수화룡 레이드는 시간이 선택사항
+            if (timeStr != null && !timeStr.isEmpty()) {
+                raidTime = LocalTime.parse(timeStr);
+            }
             
             Map<String, Object> response = bossService.createRaidRoom(bossType, raidDate, raidTime);
             return ResponseUtil.fromServiceResponse(response);

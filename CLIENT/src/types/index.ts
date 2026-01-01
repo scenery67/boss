@@ -37,6 +37,8 @@ export interface Channel {
   bossJinColor?: string;
   bossMukColor?: string;
   bossGamColor?: string;
+  waterDragonDefeatedAt?: string; // 수룡 잡힌 시간 (ISO 8601)
+  fireDragonDefeatedAt?: string; // 화룡 잡힌 시간 (ISO 8601)
   users: ChannelUser[];
 }
 

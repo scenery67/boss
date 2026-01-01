@@ -22,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -207,6 +209,18 @@ public class RaidRoomService {
                             channelData.put("bossJinColor", channel.getBossJinColor() != null ? channel.getBossJinColor() : "");
                             channelData.put("bossMukColor", channel.getBossMukColor() != null ? channel.getBossMukColor() : "");
                             channelData.put("bossGamColor", channel.getBossGamColor() != null ? channel.getBossGamColor() : "");
+                            
+                            // 수화룡 레이드용 필드
+                            if (channel.getWaterDragonDefeatedAt() != null) {
+                                channelData.put("waterDragonDefeatedAt", channel.getWaterDragonDefeatedAt().toString());
+                            } else {
+                                channelData.put("waterDragonDefeatedAt", null);
+                            }
+                            if (channel.getFireDragonDefeatedAt() != null) {
+                                channelData.put("fireDragonDefeatedAt", channel.getFireDragonDefeatedAt().toString());
+                            } else {
+                                channelData.put("fireDragonDefeatedAt", null);
+                            }
                             
                             // 채널에 있는 유저들 (null 체크)
                             List<Map<String, Object>> users = new java.util.ArrayList<>();
@@ -893,6 +907,86 @@ public class RaidRoomService {
             logger.error("레이드 참석 토글 중 오류: userId={}, roomId={}", userId, roomId, e);
             Map<String, Object> error = new HashMap<>();
             error.put("error", "참석 처리 중 오류가 발생했습니다: " + e.getMessage());
+            return error;
+        }
+    }
+    
+    /**
+     * 수화룡 레이드: 수룡/화룡 잡힌 시간 업데이트
+     * 캐시 무효화는 트랜잭션 커밋 후 RealtimeBossService에서 처리
+     */
+    @Transactional
+    public Map<String, Object> updateDragonDefeatedTime(Long roomId, Long channelId, String dragonType, String defeatedAtStr) {
+        try {
+            Optional<Channel> channelOpt = channelRepository.findById(channelId);
+            
+            if (channelOpt.isEmpty()) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "채널을 찾을 수 없습니다");
+                return error;
+            }
+            
+            Channel channel = channelOpt.get();
+            
+            // 방 ID 확인
+            if (channel.getRaidRoom() == null || !channel.getRaidRoom().getId().equals(roomId)) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "잘못된 레이드 방입니다");
+                return error;
+            }
+            
+            // 보스 타입 확인 (수화룡 레이드인지 확인)
+            if (channel.getRaidRoom().getBoss() == null || 
+                channel.getRaidRoom().getBoss().getType() == null ||
+                !channel.getRaidRoom().getBoss().getType().name().equals("DRAGON_WATER_FIRE")) {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "이 레이드는 수화룡 레이드가 아닙니다");
+                return error;
+            }
+            
+            // 시간 파싱 (ISO 8601 형식: "2024-01-01T12:00:00" 또는 "2024-01-01T12:00:00.000")
+            LocalDateTime defeatedAt = null;
+            if (defeatedAtStr != null && !defeatedAtStr.trim().isEmpty()) {
+                try {
+                    // ISO 8601 형식 파싱 시도
+                    if (defeatedAtStr.contains("T")) {
+                        defeatedAt = LocalDateTime.parse(defeatedAtStr.replace("Z", ""), 
+                            DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                    } else {
+                        // 날짜만 있는 경우 현재 시간으로 설정
+                        defeatedAt = LocalDateTime.now();
+                    }
+                } catch (Exception e) {
+                    Map<String, Object> error = new HashMap<>();
+                    error.put("error", "잘못된 시간 형식입니다: " + e.getMessage());
+                    return error;
+                }
+            }
+            
+            // 드래곤 타입에 따라 필드 업데이트
+            if ("water".equals(dragonType)) {
+                channel.setWaterDragonDefeatedAt(defeatedAt);
+            } else if ("fire".equals(dragonType)) {
+                channel.setFireDragonDefeatedAt(defeatedAt);
+            } else {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "잘못된 드래곤 타입입니다 (water 또는 fire)");
+                return error;
+            }
+            
+            channelRepository.save(channel);
+            
+            // 실시간 브로드캐스트
+            realtimeBossService.broadcastRaidRoomUpdate(roomId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            return response;
+        } catch (Exception e) {
+            logger.error("드래곤 잡힌 시간 업데이트 중 오류: roomId={}, channelId={}, dragonType={}", 
+                roomId, channelId, dragonType, e);
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "드래곤 잡힌 시간 업데이트 중 오류가 발생했습니다: " + e.getMessage());
             return error;
         }
     }

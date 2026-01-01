@@ -185,3 +185,21 @@ export const createChannelsBatch = async (roomId: number, channelNumbers: number
   
   return response.data;
 };
+
+// 수화룡 레이드: 수룡/화룡 잡힌 시간 업데이트
+export const updateDragonDefeatedTime = async (
+  roomId: number, 
+  channelId: number, 
+  dragonType: 'water' | 'fire', 
+  defeatedAt: string
+): Promise<ApiResponse> => {
+  const response = await apiClient.put(`/api/raid-rooms/${roomId}/channels/${channelId}/dragon-time`, {
+    dragonType,
+    defeatedAt
+  });
+  
+  // 드래곤 잡힌 시간 업데이트 시 해당 방 캐시 무효화
+  cache.delete(getRaidRoomCacheKey(roomId));
+  
+  return response.data;
+};

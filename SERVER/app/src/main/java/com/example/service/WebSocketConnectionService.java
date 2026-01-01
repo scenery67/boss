@@ -1,11 +1,14 @@
 package com.example.service;
 
 import com.example.entity.User;
+import com.example.entity.UserAccessLog;
 import com.example.repository.UserRepository;
+import com.example.repository.UserAccessLogRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -24,6 +27,9 @@ public class WebSocketConnectionService {
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private UserAccessLogRepository userAccessLogRepository;
     
     // 레이드 방별 접속 세션 목록 (roomId -> Set<sessionId>)
     private final Map<Long, Set<String>> roomSessions = new ConcurrentHashMap<>();
@@ -49,7 +55,25 @@ public class WebSocketConnectionService {
             // 세션 기반으로 접속 추적 (같은 userId라도 다른 세션이면 별도로 추적)
             roomSessions.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
             
-            logger.info("사용자 접속: sessionId={}, userId={}, roomId={}", sessionId, userId, roomId);
+            // 사용자 정보 조회하여 로그에 사용자 이름 포함
+            String username = "알 수 없음";
+            try {
+                Optional<User> userOpt = userRepository.findById(userId);
+                if (userOpt.isPresent()) {
+                    User user = userOpt.get();
+                    username = user.getDisplayName() != null && !user.getDisplayName().isEmpty() 
+                        ? user.getDisplayName() 
+                        : (user.getUsername() != null ? user.getUsername() : "알 수 없음");
+                }
+            } catch (Exception e) {
+                logger.warn("사용자 정보 조회 실패: userId={}", userId, e);
+            }
+            
+            logger.info("[수화룡 레이드] 사용자 접속 - 사용자: {} (userId={}), 방: roomId={}, 세션: sessionId={}", 
+                username, userId, roomId, sessionId);
+            
+            // DB에 접속 로그 저장 (비동기)
+            saveAccessLog(userId, roomId, UserAccessLog.AccessAction.CONNECT, sessionId);
             
             // 접속 사용자 목록 브로드캐스트
             broadcastConnectedUsers(roomId);
@@ -75,17 +99,36 @@ public class WebSocketConnectionService {
                     }
                 }
                 
-                logger.info("사용자 접속 해제: sessionId={}, userId={}, roomId={}", sessionId, userId, roomId);
+                // 사용자 정보 조회하여 로그에 사용자 이름 포함
+                String username = "알 수 없음";
+                if (userId != null) {
+                    try {
+                        Optional<User> userOpt = userRepository.findById(userId);
+                        if (userOpt.isPresent()) {
+                            User user = userOpt.get();
+                            username = user.getDisplayName() != null && !user.getDisplayName().isEmpty() 
+                                ? user.getDisplayName() 
+                                : (user.getUsername() != null ? user.getUsername() : "알 수 없음");
+                        }
+                    } catch (Exception e) {
+                        logger.warn("사용자 정보 조회 실패: userId={}", userId, e);
+                    }
+                }
+                
+                logger.info("[수화룡 레이드] 사용자 접속 해제 - 사용자: {} (userId={}), 방: roomId={}, 세션: sessionId={}", 
+                    username, userId, roomId, sessionId);
                 
                 // 사용자가 레이드 방을 나갈 때 이동중 상태 제거
                 if (userId != null) {
+                    // DB에 해제 로그 저장 (비동기)
+                    saveAccessLog(userId, roomId, UserAccessLog.AccessAction.DISCONNECT, sessionId);
                     try {
                         // 순환 참조 방지를 위해 ApplicationContextProvider 사용
                         com.example.service.RaidRoomService raidRoomService = com.example.config.ApplicationContextProvider
                             .getApplicationContext()
                             .getBean(com.example.service.RaidRoomService.class);
                         raidRoomService.clearUserMovingStatus(roomId, userId);
-                        logger.info("사용자 이동중 상태 제거: userId={}, roomId={}", userId, roomId);
+                        logger.debug("사용자 이동중 상태 제거: userId={}, roomId={}", userId, roomId);
                     } catch (Exception e) {
                         logger.warn("사용자 이동중 상태 제거 실패: userId={}, roomId={}", userId, roomId, e);
                     }
@@ -164,6 +207,36 @@ public class WebSocketConnectionService {
             logger.debug("접속 사용자 목록 브로드캐스트: roomId={}, users={}", roomId, connectedUsers.size());
         } catch (Exception e) {
             logger.error("접속 사용자 목록 브로드캐스트 중 오류: roomId={}", roomId, e);
+        }
+    }
+    
+    /**
+     * 접속/해제 로그를 DB에 저장 (비동기 처리)
+     */
+    @Async
+    public void saveAccessLog(Long userId, Long roomId, UserAccessLog.AccessAction action, String sessionId) {
+        if (userId == null || roomId == null) {
+            logger.warn("접속 로그 저장 실패: userId 또는 roomId가 null입니다. userId={}, roomId={}", userId, roomId);
+            return;
+        }
+        
+        try {
+            Optional<User> userOpt = userRepository.findById(userId);
+            if (userOpt.isEmpty()) {
+                logger.warn("접속 로그 저장 실패: 사용자를 찾을 수 없음 userId={}", userId);
+                return;
+            }
+            
+            UserAccessLog log = new UserAccessLog();
+            log.setUser(userOpt.get());
+            log.setRoomId(roomId);
+            log.setAction(action);
+            log.setSessionId(sessionId);
+            
+            userAccessLogRepository.save(log);
+            logger.debug("접속 로그 저장 완료: userId={}, roomId={}, action={}", userId, roomId, action);
+        } catch (Exception e) {
+            logger.error("접속 로그 저장 중 오류: userId={}, roomId={}, action={}", userId, roomId, action, e);
         }
     }
 }

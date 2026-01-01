@@ -130,6 +130,31 @@ public class RaidRoomController {
         return ResponseUtil.fromServiceResponse(response);
     }
     
+    // 수화룡 레이드: 수룡/화룡 잡힌 시간 업데이트
+    @PutMapping("/{roomId}/channels/{channelId}/dragon-time")
+    public ResponseEntity<Map<String, Object>> updateDragonDefeatedTime(
+            @PathVariable Long roomId,
+            @PathVariable Long channelId,
+            @RequestBody Map<String, Object> request) {
+        try {
+            String dragonType = (String) request.get("dragonType"); // "water" or "fire"
+            String defeatedAtStr = (String) request.get("defeatedAt"); // ISO 8601 형식의 시간 문자열
+            
+            if (dragonType == null || defeatedAtStr == null) {
+                return ResponseUtil.badRequest("드래곤 타입과 잡힌 시간이 필요합니다");
+            }
+            
+            if (!dragonType.equals("water") && !dragonType.equals("fire")) {
+                return ResponseUtil.badRequest("드래곤 타입은 'water' 또는 'fire'여야 합니다");
+            }
+            
+            Map<String, Object> response = raidRoomService.updateDragonDefeatedTime(roomId, channelId, dragonType, defeatedAtStr);
+            return ResponseUtil.fromServiceResponse(response);
+        } catch (Exception e) {
+            return ResponseUtil.internalError("드래곤 잡힌 시간 업데이트 중 오류가 발생했습니다: " + e.getMessage());
+        }
+    }
+    
     // 레이드 방 완료 처리
     @PutMapping("/{roomId}/complete")
     public ResponseEntity<Map<String, Object>> completeRaidRoom(@PathVariable Long roomId) {
