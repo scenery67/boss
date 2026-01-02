@@ -262,7 +262,7 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
 
       // 중복 제거 및 숫자로 변환
       const channelNumbers = Array.from(new Set(matches.map(m => parseInt(m, 10))))
-        .filter(num => num >= 1000 && num <= 9999) // 유효한 채널 번호 범위
+        .filter(num => num >= 1 && num <= 9999) // 유효한 채널 번호 범위 (0001-9999)
         .sort((a, b) => a - b);
 
       if (channelNumbers.length === 0) {
@@ -481,14 +481,26 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
         return;
       }
       
+      // 숫자만 허용하는지 확인 (앞뒤 공백 제거 후 숫자만 있어야 함)
+      if (!/^\d+$/.test(channelNumber)) {
+        alert('채널 번호는 숫자만 입력 가능합니다.');
+        return;
+      }
+      
       cleanup();
       input.removeEventListener('paste', handlePaste);
       document.removeEventListener('paste', handlePaste);
       document.removeEventListener('keydown', handleDialogKeyDown);
       
       // 기존 로직으로 채널 생성
-      const channelNum = parseInt(channelNumber);
-      if (isNaN(channelNum)) {
+      const channelNum = parseInt(channelNumber, 10);
+      if (isNaN(channelNum) || channelNum < 1 || channelNum > 9999) {
+        alert('올바른 채널 번호(1-9999)를 입력하세요.');
+        return;
+      }
+
+      // 입력값과 파싱된 값이 일치하는지 확인 (예: "1e3" 같은 경우 방지)
+      if (channelNumber !== channelNum.toString()) {
         alert('올바른 채널 번호를 입력하세요.');
         return;
       }
