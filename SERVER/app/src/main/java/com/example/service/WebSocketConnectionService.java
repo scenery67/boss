@@ -122,16 +122,8 @@ public class WebSocketConnectionService {
                 if (userId != null) {
                     // DB에 해제 로그 저장 (비동기)
                     saveAccessLog(userId, roomId, UserAccessLog.AccessAction.DISCONNECT, sessionId);
-                    try {
-                        // 순환 참조 방지를 위해 ApplicationContextProvider 사용
-                        com.example.service.RaidRoomService raidRoomService = com.example.config.ApplicationContextProvider
-                            .getApplicationContext()
-                            .getBean(com.example.service.RaidRoomService.class);
-                        raidRoomService.clearUserMovingStatus(roomId, userId);
-                        logger.debug("사용자 이동중 상태 제거: userId={}, roomId={}", userId, roomId);
-                    } catch (Exception e) {
-                        logger.warn("사용자 이동중 상태 제거 실패: userId={}, roomId={}", userId, roomId, e);
-                    }
+                    // 이동중 상태 제거도 비동기로 처리 (DB 연결 문제 시 블로킹 방지)
+                    clearUserMovingStatusAsync(roomId, userId);
                 }
                 
                 // 접속 사용자 목록 브로드캐스트
@@ -237,6 +229,30 @@ public class WebSocketConnectionService {
             logger.debug("접속 로그 저장 완료: userId={}, roomId={}, action={}", userId, roomId, action);
         } catch (Exception e) {
             logger.error("접속 로그 저장 중 오류: userId={}, roomId={}, action={}", userId, roomId, action, e);
+        }
+    }
+    
+    /**
+     * 사용자의 이동중 상태 제거 (비동기 처리, DB 연결 문제 시 블로킹 방지)
+     */
+    @Async
+    public void clearUserMovingStatusAsync(Long roomId, Long userId) {
+        if (roomId == null || userId == null) {
+            return;
+        }
+        
+        try {
+            // 순환 참조 방지를 위해 ApplicationContextProvider 사용
+            com.example.service.RaidRoomService raidRoomService = com.example.config.ApplicationContextProvider
+                .getApplicationContext()
+                .getBean(com.example.service.RaidRoomService.class);
+            raidRoomService.clearUserMovingStatus(roomId, userId);
+            logger.debug("사용자 이동중 상태 제거 완료: userId={}, roomId={}", userId, roomId);
+        } catch (org.springframework.transaction.CannotCreateTransactionException e) {
+            // DB 연결 문제는 경고만 로그 (치명적이지 않음)
+            logger.warn("사용자 이동중 상태 제거 실패 (DB 연결 불가): userId={}, roomId={}", userId, roomId);
+        } catch (Exception e) {
+            logger.warn("사용자 이동중 상태 제거 실패: userId={}, roomId={}", userId, roomId, e);
         }
     }
 }
