@@ -821,15 +821,7 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
     }
   };
 
-  if (loading) {
-    return <div>로딩 중...</div>;
-  }
-
-  if (error || !roomData) {
-    return <div style={{ color: 'red' }}>{error || '방 정보를 불러올 수 없습니다.'}</div>;
-  }
-
-  // roomData와 currentTime이 변경될 때마다 상태 재계산
+  // roomData와 currentTime이 변경될 때마다 상태 재계산 (Hook은 조건부 렌더링 이전에 호출되어야 함)
   const respawnStatusChannels = useMemo(() => {
     if (!roomData) return { now: [], soon: [], waiting: [], done: [] };
     
@@ -901,6 +893,14 @@ const DragonWaterFireRoomPage: React.FC<DragonWaterFireRoomPageProps> = ({ user 
     
     return { now, soon, waiting, done };
   }, [roomData, currentTime, waterRespawnMinutes, fireRespawnMinutes]);
+
+  if (loading) {
+    return <div>로딩 중...</div>;
+  }
+
+  if (error || !roomData) {
+    return <div style={{ color: 'red' }}>{error || '방 정보를 불러올 수 없습니다.'}</div>;
+  }
 
   return (
     <div className="raid-room-container">
